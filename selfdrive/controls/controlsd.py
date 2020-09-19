@@ -10,7 +10,7 @@ from common.params import Params, put_nonblocking
 import cereal.messaging as messaging
 from selfdrive.config import Conversions as CV
 from selfdrive.boardd.boardd import can_list_to_can_capnp
-from selfdrive.car.car_helpers import get_car, get_startup_event
+from selfdrive.car.car_helpers import get_car, get_startup_event, get_one_can
 from selfdrive.controls.lib.lane_planner import CAMERA_OFFSET
 from selfdrive.controls.lib.drive_helpers import update_v_cruise, initialize_v_cruise
 from selfdrive.controls.lib.longcontrol import LongControl, STARTING_TARGET_SPEED
@@ -66,7 +66,7 @@ class Controls:
     hw_type = messaging.recv_one(self.sm.sock['health']).health.hwType
     has_relay = hw_type in [HwType.blackPanda, HwType.uno, HwType.dos]
     print("Waiting for CAN messages...")
-    messaging.get_one_can(self.can_sock)
+    get_one_can(self.can_sock)
 
     self.CI, self.CP = get_car(self.can_sock, self.pm.sock['sendcan'], has_relay)
 
@@ -112,6 +112,8 @@ class Controls:
     elif self.CP.lateralTuning.which() == 'lqr':
       self.LaC = LatControlLQR(self.CP)
 
+    self.controlsAllowed = False
+
     self.state = State.disabled
     self.enabled = False
     self.active = False
@@ -137,8 +139,8 @@ class Controls:
 
     if not sounds_available:
       self.events.add(EventName.soundsUnavailable, static=True)
-    #if internet_needed:
-    #  self.events.add(EventName.internetConnectivityNeeded, static=True)
+    if internet_needed:
+      self.events.add(EventName.internetConnectivityNeeded, static=True)
     if community_feature_disallowed:
       self.events.add(EventName.communityFeatureDisallowed, static=True)
     if self.read_only and not passive:
@@ -151,10 +153,6 @@ class Controls:
     self.prof = Profiler(False)  # off by default
 
     self.hyundai_lkas = self.read_only  #read_only
-
-    self.controlsAllowed = 0
-    self.timer_allowed = 1500
-    self.timer_start = 1500
 
   def auto_enable(self, CS):
     if self.state != State.enabled and CS.vEgo >= 15 * CV.KPH_TO_MS and CS.gearShifter == 2:
@@ -172,10 +170,6 @@ class Controls:
     if self.startup_event is not None:
       self.events.add(self.startup_event)
       self.startup_event = None
-      self.timer_start = 500
-
-    if self.timer_start:
-      self.timer_start -= 1
 
     # Create events for battery, temperature, disk space, and memory
     if self.sm['thermal'].batteryPercent < 1 and self.sm['thermal'].chargingError:
@@ -191,7 +185,7 @@ class Controls:
 
     # Handle calibration status
     cal_status = self.sm['liveCalibration'].calStatus
-    if cal_status != Calibration.CALIBRATED and not self.timer_start:
+    if cal_status != Calibration.CALIBRATED:
       if cal_status == Calibration.UNCALIBRATED:
         self.events.add(EventName.calibrationIncomplete)
       else:
@@ -212,7 +206,7 @@ class Controls:
                                         LaneChangeState.laneChangeFinishing, LaneChangeState.laneChangeDone]:
       self.events.add(EventName.laneChange)
 
-    #print( 'can rcv error ={}, canvalid={} frame={} '.format( self.can_rcv_error,  CS.canValid, self.sm.frame ) )
+
     if self.can_rcv_error or (not CS.canValid and self.sm.frame > 5 / DT_CTRL):
       self.events.add(EventName.canError)
     if self.mismatch_counter >= 200:
@@ -220,10 +214,10 @@ class Controls:
     if not self.sm.alive['plan'] and self.sm.alive['pathPlan']:
       # only plan not being received: radar not communicating
       self.events.add(EventName.radarCommIssue)
-    elif not self.timer_start and not self.sm.all_alive_and_valid():
+    elif not self.sm.all_alive_and_valid():
       self.events.add(EventName.commIssue)
-    #if not self.sm['pathPlan'].mpcSolutionValid:
-      #self.events.add(EventName.plannerError)
+    if not self.sm['pathPlan'].mpcSolutionValid:
+      self.events.add(EventName.plannerError)
     if not self.sm['liveLocationKalman'].sensorsOK and os.getenv("NOSENSOR") is None:
       if self.sm.frame > 5 / DT_CTRL:  # Give locationd some time to receive all the inputs
         self.events.add(EventName.sensorDataInvalid)
@@ -234,6 +228,8 @@ class Controls:
       self.events.add(EventName.vehicleModelInvalid)
     if not self.sm['liveLocationKalman'].posenetOK:
       self.events.add(EventName.posenetInvalid)
+    if not self.sm['liveLocationKalman'].deviceStable:
+      self.events.add(EventName.deviceFalling)
     if not self.sm['frame'].recoverState < 2:
       # counter>=2 is active
       self.events.add(EventName.focusRecoverActive)
@@ -276,9 +272,10 @@ class Controls:
     # another socket other than the CAN messages and one can arrive earlier than the other.
     # Therefore we allow a mismatch for two samples, then we trigger the disengagement.
     self.controlsAllowed = self.sm['health'].controlsAllowed
+
     if not self.enabled:
       self.mismatch_counter = 0
-    elif not self.controlsAllowed:
+    elif not self.controlsAllowed and self.enabled:
       self.mismatch_counter += 1
 
     #print( 'controlsAllowed={} self.mismatch_counter={}'.format( self.controlsAllowed, self.mismatch_counter ) )
@@ -364,8 +361,6 @@ class Controls:
     # Check if openpilot is engaged
     self.enabled = self.active or self.state == State.preEnabled
 
-
-
   def state_control(self, CS):
     """Given the state, this function returns an actuators packet"""
 
@@ -424,7 +419,7 @@ class Controls:
 
     log_alertTextMsg1 = trace1.global_alertTextMsg1
     log_alertTextMsg2 = trace1.global_alertTextMsg2
-    log_alertTextMsg1 += '  제어={}  배터리={}%'.format( self.CP.lateralTuning.which(), self.sm['thermal'].batteryPercent )
+    #log_alertTextMsg1 += '  제어={}'.format( self.CP.lateralTuning.which() )
     
 
     CC = car.CarControl.new_message()
@@ -473,11 +468,10 @@ class Controls:
     self.AM.process_alerts(self.sm.frame)
     CC.hudControl.visualAlert = self.AM.visual_alert
 
-    if not self.hyundai_lkas and self.enabled and self.controlsAllowed and not self.timer_start:
+    if not self.hyundai_lkas and self.enabled:
       # send car controls over can
-      can_sends = self.CI.apply( CC, self.sm, self.CP )
+      can_sends = self.CI.apply(CC, self.sm, self.CP )
       self.pm.send('sendcan', can_list_to_can_capnp(can_sends, msgtype='sendcan', valid=CS.canValid))
-
 
     force_decel = (self.sm['dMonitoringState'].awarenessStatus < 0.) or \
                     (self.state == State.softDisabling)

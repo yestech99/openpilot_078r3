@@ -585,10 +585,7 @@ int main(int argc, char** argv) {
   }
 
   bool is_streaming = false;
-  int is_logging = 0;;
-
-  ui_get_params( "RecordFront", &is_logging );
-
+  bool is_logging = true;
 
   if (argc > 1 && strcmp(argv[1], "--stream") == 0) {
     is_streaming = true;

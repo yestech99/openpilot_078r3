@@ -879,7 +879,7 @@ struct LiveCalibrationData {
   class Pipeline;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(96df70754d8390bc, 1, 5)
+    CAPNP_DECLARE_STRUCT_HEADER(96df70754d8390bc, 2, 6)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
@@ -5382,6 +5382,11 @@ public:
   inline bool hasRpyCalib() const;
   inline  ::capnp::List<float>::Reader getRpyCalib() const;
 
+  inline bool hasRpyCalibSpread() const;
+  inline  ::capnp::List<float>::Reader getRpyCalibSpread() const;
+
+  inline  ::int32_t getValidBlocks() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -5458,6 +5463,17 @@ public:
   inline  ::capnp::List<float>::Builder initRpyCalib(unsigned int size);
   inline void adoptRpyCalib(::capnp::Orphan< ::capnp::List<float>>&& value);
   inline ::capnp::Orphan< ::capnp::List<float>> disownRpyCalib();
+
+  inline bool hasRpyCalibSpread();
+  inline  ::capnp::List<float>::Builder getRpyCalibSpread();
+  inline void setRpyCalibSpread( ::capnp::List<float>::Reader value);
+  inline void setRpyCalibSpread(::kj::ArrayPtr<const float> value);
+  inline  ::capnp::List<float>::Builder initRpyCalibSpread(unsigned int size);
+  inline void adoptRpyCalibSpread(::capnp::Orphan< ::capnp::List<float>>&& value);
+  inline ::capnp::Orphan< ::capnp::List<float>> disownRpyCalibSpread();
+
+  inline  ::int32_t getValidBlocks();
+  inline void setValidBlocks( ::int32_t value);
 
 private:
   ::capnp::_::StructBuilder _builder;
@@ -8322,6 +8338,8 @@ public:
 
   inline bool getSensorsOK() const;
 
+  inline bool getDeviceStable() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -8471,6 +8489,9 @@ public:
 
   inline bool getSensorsOK();
   inline void setSensorsOK(bool value);
+
+  inline bool getDeviceStable();
+  inline void setDeviceStable(bool value);
 
 private:
   ::capnp::_::StructBuilder _builder;
@@ -22833,6 +22854,58 @@ inline ::capnp::Orphan< ::capnp::List<float>> LiveCalibrationData::Builder::diso
       ::capnp::bounded<4>() * ::capnp::POINTERS));
 }
 
+inline bool LiveCalibrationData::Reader::hasRpyCalibSpread() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS).isNull();
+}
+inline bool LiveCalibrationData::Builder::hasRpyCalibSpread() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::List<float>::Reader LiveCalibrationData::Reader::getRpyCalibSpread() const {
+  return ::capnp::_::PointerHelpers< ::capnp::List<float>>::get(_reader.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS));
+}
+inline  ::capnp::List<float>::Builder LiveCalibrationData::Builder::getRpyCalibSpread() {
+  return ::capnp::_::PointerHelpers< ::capnp::List<float>>::get(_builder.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS));
+}
+inline void LiveCalibrationData::Builder::setRpyCalibSpread( ::capnp::List<float>::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::List<float>>::set(_builder.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS), value);
+}
+inline void LiveCalibrationData::Builder::setRpyCalibSpread(::kj::ArrayPtr<const float> value) {
+  ::capnp::_::PointerHelpers< ::capnp::List<float>>::set(_builder.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::List<float>::Builder LiveCalibrationData::Builder::initRpyCalibSpread(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::List<float>>::init(_builder.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS), size);
+}
+inline void LiveCalibrationData::Builder::adoptRpyCalibSpread(
+    ::capnp::Orphan< ::capnp::List<float>>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::List<float>>::adopt(_builder.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::List<float>> LiveCalibrationData::Builder::disownRpyCalibSpread() {
+  return ::capnp::_::PointerHelpers< ::capnp::List<float>>::disown(_builder.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS));
+}
+
+inline  ::int32_t LiveCalibrationData::Reader::getValidBlocks() const {
+  return _reader.getDataField< ::int32_t>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline  ::int32_t LiveCalibrationData::Builder::getValidBlocks() {
+  return _builder.getDataField< ::int32_t>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void LiveCalibrationData::Builder::setValidBlocks( ::int32_t value) {
+  _builder.setDataField< ::int32_t>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
 inline  ::int32_t LiveTracks::Reader::getTrackId() const {
   return _reader.getDataField< ::int32_t>(
       ::capnp::bounded<0>() * ::capnp::ELEMENTS);
@@ -27611,6 +27684,20 @@ inline bool LiveLocationKalman::Builder::getSensorsOK() {
 inline void LiveLocationKalman::Builder::setSensorsOK(bool value) {
   _builder.setDataField<bool>(
       ::capnp::bounded<51>() * ::capnp::ELEMENTS, value, true);
+}
+
+inline bool LiveLocationKalman::Reader::getDeviceStable() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<52>() * ::capnp::ELEMENTS, true);
+}
+
+inline bool LiveLocationKalman::Builder::getDeviceStable() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<52>() * ::capnp::ELEMENTS, true);
+}
+inline void LiveLocationKalman::Builder::setDeviceStable(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<52>() * ::capnp::ELEMENTS, value, true);
 }
 
 inline bool LiveLocationKalman::Measurement::Reader::hasValue() const {

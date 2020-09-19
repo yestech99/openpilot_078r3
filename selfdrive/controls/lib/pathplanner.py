@@ -16,7 +16,7 @@ LaneChangeDirection = log.PathPlan.LaneChangeDirection
 
 LOG_MPC = os.environ.get('LOG_MPC', True)
 
-LANE_CHANGE_SPEED_MIN = 60 * CV.KPH_TO_MS
+LANE_CHANGE_SPEED_MIN = 59 * CV.KPH_TO_MS
 LANE_CHANGE_TIME_MAX = 10.
 
 DESIRES = {
@@ -59,17 +59,12 @@ class PathPlanner():
 
     self.setup_mpc()
     self.solution_invalid_cnt = 0
+    self.lane_change_enabled = Params().get('LaneChangeEnabled') == b'1'
 
-    self.params = Params()
-
-    # Lane change 
-    self.lane_change_enabled = self.params.get('LaneChangeEnabled') == b'1'
-    self.lane_change_auto_delay = self.params.get_OpkrAutoLanechangedelay()
-
+    self.lane_change_wait_timer = 0.0
     self.lane_change_state = LaneChangeState.off
     self.lane_change_direction = LaneChangeDirection.none
-    self.lane_change_run_timer = 0.0
-    self.lane_change_wait_timer = 0.0
+    self.lane_change_timer = 0.0
     self.lane_change_ll_prob = 1.0
     self.prev_one_blinker = False
 
@@ -117,7 +112,7 @@ class PathPlanner():
     elif sm['carState'].rightBlinker:
       self.lane_change_direction = LaneChangeDirection.right
 
-    if (not active) or (self.lane_change_run_timer > LANE_CHANGE_TIME_MAX) or (not one_blinker) or (not self.lane_change_enabled):
+    if (not active) or (self.lane_change_timer > LANE_CHANGE_TIME_MAX) or (not one_blinker) or (not self.lane_change_enabled):
       self.lane_change_state = LaneChangeState.off
       self.lane_change_direction = LaneChangeDirection.none
     else:
@@ -143,7 +138,7 @@ class PathPlanner():
 
         if not one_blinker or below_lane_change_speed:
           self.lane_change_state = LaneChangeState.off
-        elif not blindspot_detected and (torque_applied or (self.lane_change_auto_delay and self.lane_change_wait_timer > self.lane_change_auto_delay)):
+        elif not blindspot_detected and (torque_applied or (self.lane_change_wait_timer > 0.5)):
           self.lane_change_state = LaneChangeState.laneChangeStarting
 
       # starting
@@ -167,9 +162,9 @@ class PathPlanner():
           self.lane_change_state = LaneChangeState.off
 
     if self.lane_change_state in [LaneChangeState.off, LaneChangeState.preLaneChange]:
-      self.lane_change_run_timer = 0.0
+      self.lane_change_timer = 0.0
     else:
-      self.lane_change_run_timer += DT_MDL
+      self.lane_change_timer += DT_MDL
 
     self.prev_one_blinker = one_blinker
 
@@ -198,6 +193,7 @@ class PathPlanner():
       rate_desired = 0.0
 
     self.cur_state[0].delta = delta_desired
+
     self.angle_steers_des_mpc = float(math.degrees(delta_desired * VM.sR) + angle_offset)
 
     #  Check for infeasable MPC solution
@@ -215,7 +211,7 @@ class PathPlanner():
       self.solution_invalid_cnt += 1
     else:
       self.solution_invalid_cnt = 0
-    plan_solution_valid = self.solution_invalid_cnt < 3
+    plan_solution_valid = self.solution_invalid_cnt < 2
 
     plan_send = messaging.new_message('pathPlan')
     plan_send.valid = sm.all_alive_and_valid(service_list=['carState', 'controlsState', 'liveParameters', 'model'])

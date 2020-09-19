@@ -5,7 +5,6 @@ from common.filter_simple import FirstOrderFilter
 from common.stat_live import RunningStatFilter
 
 from cereal import car
-from common.params import Params
 
 EventName = car.CarEvent.EventName
 
@@ -15,22 +14,16 @@ EventName = car.CarEvent.EventName
 #  We recommend that you do not change these numbers from the defaults.
 # ******************************************************************************************
 
-params = Params()
-if int(params.get('OpkrEnableLogger')) == 0:
-  _AWARENESS_TIME = 30000.
-else:
-  _AWARENESS_TIME = 70.  # one minute limit without user touching steering wheels make the car enter a terminal status
-_AWARENESS_PRE_TIME_TILL_TERMINAL = 20.  # a first alert is issued 25s before expiration
-_AWARENESS_PROMPT_TIME_TILL_TERMINAL = 10.  # a second alert is issued 15s before start decelerating the car
-if int(params.get('OpkrEnableDriverMonitoring')) == 0 and int(params.get('OpkrEnableLogger')) == 0:
-  _DISTRACTED_TIME = 30000.
-else:
-  _DISTRACTED_TIME = 11.
+_AWARENESS_TIME = 70.  # one minute limit without user touching steering wheels make the car enter a terminal status
+_AWARENESS_PRE_TIME_TILL_TERMINAL = 15.  # a first alert is issued 25s before expiration
+_AWARENESS_PROMPT_TIME_TILL_TERMINAL = 6.  # a second alert is issued 15s before start decelerating the car
+_DISTRACTED_TIME = 11.
 _DISTRACTED_PRE_TIME_TILL_TERMINAL = 8.
 _DISTRACTED_PROMPT_TIME_TILL_TERMINAL = 6.
 
-_FACE_THRESHOLD = 0.4
+_FACE_THRESHOLD = 0.6
 _EYE_THRESHOLD = 0.6
+_SG_THRESHOLD = 0.5
 _BLINK_THRESHOLD = 0.5  # 0.225
 _BLINK_THRESHOLD_SLACK = 0.65
 _BLINK_THRESHOLD_STRICT = 0.5
@@ -197,8 +190,8 @@ class DriverStatus():
     # self.pose.roll_std = driver_state.faceOrientationStd[2]
     model_std_max = max(self.pose.pitch_std, self.pose.yaw_std)
     self.pose.low_std = model_std_max < _POSESTD_THRESHOLD
-    self.blink.left_blink = driver_state.leftBlinkProb * (driver_state.leftEyeProb > _EYE_THRESHOLD)
-    self.blink.right_blink = driver_state.rightBlinkProb * (driver_state.rightEyeProb > _EYE_THRESHOLD)
+    self.blink.left_blink = driver_state.leftBlinkProb * (driver_state.leftEyeProb > _EYE_THRESHOLD) * (driver_state.sgProb < _SG_THRESHOLD)
+    self.blink.right_blink = driver_state.rightBlinkProb * (driver_state.rightEyeProb > _EYE_THRESHOLD) * (driver_state.sgProb < _SG_THRESHOLD)
     self.face_detected = driver_state.faceProb > _FACE_THRESHOLD and \
                           abs(driver_state.facePosition[0]) <= 0.4 and abs(driver_state.facePosition[1]) <= 0.45
 
@@ -235,8 +228,8 @@ class DriverStatus():
     driver_attentive = self.driver_distraction_filter.x < 0.37
     awareness_prev = self.awareness
 
-    if self.face_detected and self.hi_stds * DT_DMON > _HI_STD_TIMEOUT:
-      events.add(EventName.driverMonitorLowAcc)
+    #if self.face_detected and self.hi_stds * DT_DMON > _HI_STD_TIMEOUT:
+      #events.add(EventName.driverMonitorLowAcc)
 
     if (driver_attentive and self.face_detected and self.pose.low_std and self.awareness > 0):
       # only restore awareness when paying attention and alert is not red

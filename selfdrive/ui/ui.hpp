@@ -53,7 +53,8 @@ const int vwp_h = 1080;
 const int nav_w = 640;
 const int nav_ww= 760;
 const int sbr_w = 300;
-const int bdr_s = 30;
+const int bdr_s = 10;
+const int bdr_is = 30;
 const int box_x = sbr_w+bdr_s;
 const int box_y = bdr_s;
 const int box_w = vwp_w-sbr_w-(bdr_s*2);
@@ -80,19 +81,17 @@ const int TRACK_POINTS_MAX_CNT = 50 * 2;
 
 const int SET_SPEED_NA = 255;
 
-const uint8_t bg_colors[][4] = {
-  [STATUS_STOPPED] = {0x07, 0x23, 0x39, 0xff},
-  [STATUS_DISENGAGED] = {0x17, 0x33, 0x49, 0xff},
-  [STATUS_ENGAGED] = {0x17, 0x86, 0x44, 0xff},
-  [STATUS_WARNING] = {0xDA, 0x6F, 0x25, 0xff},
+const uint8_t bg_colors[][4] = { //I reduced the alpha of all alerts except for the red critical alert. -wirelessnet2
+  [STATUS_STOPPED] = {0x07, 0x23, 0x39, 0x7D},
+  [STATUS_DISENGAGED] = {0x17, 0x33, 0x49, 0x7D},
+  [STATUS_ENGAGED] = {0x17, 0x86, 0x44, 0x7D},
+  [STATUS_WARNING] = {0xDA, 0x6F, 0x25, 0x87},
   [STATUS_ALERT] = {0xC9, 0x22, 0x31, 0xff},
 };
 
 typedef struct UIScene {
   int frontview;
   int fullview;
-
-  int transformed_width, transformed_height;
 
   ModelData model;
 
@@ -114,12 +113,33 @@ typedef struct UIScene {
   int ui_viz_rw;
   int ui_viz_ro;
 
+  int lead_status;
+  float lead_d_rel, lead_v_rel;
+
   int front_box_x, front_box_y, front_box_width, front_box_height;
 
   std::string alert_text1;
   std::string alert_text2;
   std::string alert_type;
   cereal::ControlsState::AlertSize alert_size;
+
+  float angleSteers;
+  bool brakeLights;
+  bool  brakePress;
+  float angleSteersDes;
+  bool recording;
+  float gpsAccuracyUblox;
+  float altitudeUblox;
+  int engineRPM;
+  bool steerOverride;
+  float output_scale;
+  float steeringTorqueEps;
+  float aEgo;
+  float cpu0Temp;
+  int cpuPerc;
+  float steerRatio;
+  
+  char ipAddr[20];
 
   // Used to show gps planner status
   bool gps_planner_active;
@@ -132,30 +152,8 @@ typedef struct UIScene {
   cereal::RadarState::LeadData::Reader lead_data[2];
   cereal::ControlsState::Reader controls_state;
   cereal::DriverState::Reader driver_state;
-
-
-  // dev ui
-  uint16_t maxCpuTemp;
-  uint32_t maxBatTemp;
-  float angleSteers;  
-  float angleSteersDes;  
-
-  int  engaged;
-  float v_ego;
-
-
-  int lead_status;
-  float lead_d_rel, lead_y_rel, lead_v_rel;
-
-  bool  brakePress;
-  bool  brakeLights;
-  bool  leftBlinker;
-  bool  rightBlinker;
-
-  char ipAddr[20];
-
-
-  cereal::CarState::GearShifter  getGearShifter;  
+  cereal::DMonitoringState::Reader dmonitoring_state;
+  cereal::CarState::GearShifter getGearShifter;  
 
   struct _STATUS_
   {
@@ -163,19 +161,6 @@ typedef struct UIScene {
       char text2[512];
   } alert;
 
-  struct _KEGMEN_
-  {
-      bool steerOverride;
-      float output_scale;
-  } kegman;
-
-
-  struct  _PARAMS
-  {
-    int nOpkrAutoScreenOff;
-    int nOpkrUIBrightness;
-    int nOpkrUIVolumeBoost;
-  } params;
 } UIScene;
 
 typedef struct {
@@ -204,7 +189,6 @@ typedef struct UIState {
   NVGcontext *vg;
 
   // fonts and images
-  int font_courbd;
   int font_sans_regular;
   int font_sans_semibold;
   int font_sans_bold;
@@ -247,7 +231,6 @@ typedef struct UIState {
 
   int rgb_width, rgb_height, rgb_stride;
   size_t rgb_buf_len;
-  mat4 rgb_transform;
 
   int rgb_front_width, rgb_front_height, rgb_front_stride;
   size_t rgb_front_buf_len;
@@ -277,12 +260,12 @@ typedef struct UIState {
   float alert_blinking_alpha;
   bool alert_blinked;
   bool started;
-  bool preview_started;
   bool vision_seen;
 
   std::atomic<float> light_sensor;
 
   int touch_fd;
+
 
   GLuint frame_vao[2], frame_vbo[2], frame_ibo[2];
   mat4 rear_frame_mat, front_frame_mat;

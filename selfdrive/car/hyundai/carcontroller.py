@@ -2,18 +2,14 @@ from cereal import car, log
 from common.realtime import DT_CTRL
 from selfdrive.car import apply_std_steer_torque_limits
 from selfdrive.car.hyundai.hyundaican import create_lkas11, create_clu11, create_lfa_mfa, create_mdps12
-from selfdrive.car.hyundai.values import Buttons, SteerLimitParams, CAR, FEATURES
+from selfdrive.car.hyundai.values import Buttons, SteerLimitParams, CAR
 from opendbc.can.packer import CANPacker
 from selfdrive.config import Conversions as CV
-from common.numpy_fast import interp
 
 # speed controller
 from selfdrive.car.hyundai.spdcontroller  import SpdController
-from selfdrive.car.hyundai.spdctrlSlow  import SpdctrlSlow
-from selfdrive.car.hyundai.spdctrlNormal  import SpdctrlNormal
-from selfdrive.car.hyundai.spdctrlFast  import SpdctrlFast
+from selfdrive.car.hyundai.spdctrl  import Spdctrl
 
-from common.params import Params
 import common.log as trace1
 import common.CTime1000 as tm
 
@@ -34,6 +30,7 @@ class CarController():
     self.emergency_manual_timer = 0
     self.driver_steering_torque_above_timer = 0
     self.mode_change_timer = 0
+    self.mode_change_switch = 1
 
     self.steer_mode = ""
     self.mdps_status = ""
@@ -48,6 +45,7 @@ class CarController():
     self.vRel = 0
 
     self.timer1 = tm.CTime1000("time")
+    self.SC = Spdctrl()
     self.model_speed = 0
     self.model_sum = 0
     
@@ -55,23 +53,10 @@ class CarController():
     self.hud_timer_left = 0
     self.hud_timer_right = 0
 
-    self.command_cnt = 0
-    self.command_load = 0
-    self.params = Params()
-
-    # param
-    self.param_preOpkrAccelProfile = -1
-    self.param_OpkrAccelProfile = 0
-    self.param_OpkrAutoResume = 0
-
-    self.SC = None
     self.traceCC = trace1.Loger("CarController")
-    
+
     self.res_cnt = 7
     self.res_delay = 0
-
-    self.params = Params()
-    self.mode_change_switch = int(self.params.get('CruiseStatemodeSelInit'))
 
   def process_hud_alert(self, enabled, CC ):
     visual_alert = CC.hudControl.visualAlert
@@ -108,51 +93,19 @@ class CarController():
     return sys_warning, sys_state
 
 
-  def param_load(self ):
-    self.command_cnt += 1
-    if self.command_cnt > 100:
-      self.command_cnt = 0
-
-    if self.command_cnt % 10:
-      return
-
-    self.command_load += 1
-    if self.command_load == 1:
-      self.param_OpkrAccelProfile = int(self.params.get('OpkrAccelProfile')) 
-    elif self.command_load == 2:
-      self.param_OpkrAutoResume = int(self.params.get('OpkrAutoResume'))
-    else:
-      self.command_load = 0
-    
-    # speed controller
-    if self.param_preOpkrAccelProfile != self.param_OpkrAccelProfile:
-      self.param_preOpkrAccelProfile = self.param_OpkrAccelProfile
-      if self.param_OpkrAccelProfile == 1:
-        self.SC = SpdctrlSlow()
-      elif self.param_OpkrAccelProfile == 2:
-        self.SC = SpdctrlNormal()
-      else:
-        self.SC = SpdctrlFast()
-
 
   def update(self, CC, CS, frame, sm, CP ):
 
     if self.CP != CP:
       self.CP = CP
 
-    self.param_load()
-    
     enabled = CC.enabled
     actuators = CC.actuators
     pcm_cancel_cmd = CC.cruiseControl.cancel
     
     self.dRel, self.yRel, self.vRel = SpdController.get_lead( sm )
 
-    if self.SC is not None:
-      self.model_speed, self.model_sum = self.SC.calc_va(  sm, CS.out.vEgo  )
-    else:
-      self.model_speed = self.model_sum = 0
-
+    self.model_speed, self.model_sum = self.SC.calc_va(  sm, CS.out.vEgo  )
 
     # Steering Torque
     new_steer = actuators.steer * SteerLimitParams.STEER_MAX
@@ -162,12 +115,12 @@ class CarController():
     # disable if steer angle reach 90 deg, otherwise mdps fault in some models
     lkas_active = enabled and abs(CS.out.steeringAngle) < 90.
 
-    if (( CS.out.leftBlinker and not CS.out.rightBlinker) or ( CS.out.rightBlinker and not CS.out.leftBlinker)) and CS.out.vEgo < 60 * CV.KPH_TO_MS:
+    if (( CS.out.leftBlinker and not CS.out.rightBlinker) or ( CS.out.rightBlinker and not CS.out.leftBlinker)) and CS.out.vEgo <= 59 * CV.KPH_TO_MS:
       self.lanechange_manual_timer = 10
     if CS.out.leftBlinker and CS.out.rightBlinker:
       self.emergency_manual_timer = 10
-    if abs(CS.out.steeringTorque) > 180:
-      self.driver_steering_torque_above_timer = 100
+    if abs(CS.out.steeringTorque) > 200:
+      self.driver_steering_torque_above_timer = 25
     if self.lanechange_manual_timer or self.driver_steering_torque_above_timer:
       lkas_active = 0
     if self.lanechange_manual_timer > 0:
@@ -209,8 +162,8 @@ class CarController():
     #if CS.mdps_bus:
     can_sends.append(create_mdps12(self.packer, frame, CS.mdps12))                                   
 
-    str_log1 = '곡률={:04.1f}/{:=+06.3f}  토크={:=+04.0f}/{:=+04.0f}'.format(  self.model_speed, self.model_sum, new_steer, CS.out.steeringTorque )
-    str_log2 = '프레임율={:03.0f}'.format( self.timer1.sampleTime() )
+    str_log1 = '곡률={:05.1f}'.format(  self.model_speed )
+    str_log2 = '프레임율={:03.0f}  TPMS=FL:{:04.1f}/FR:{:04.1f}/RL:{:04.1f}/RR:{:04.1f}'.format( self.timer1.sampleTime(), CS.tpmsPressureFl, CS.tpmsPressureFr, CS.tpmsPressureRl, CS.tpmsPressureRr )
     trace1.printf( '{}  {}'.format( str_log1, str_log2 ) )
 
     if CS.out.cruiseState.modeSel == 0 and self.mode_change_switch == 4:
@@ -231,7 +184,7 @@ class CarController():
     if self.mode_change_timer > 0:
       self.mode_change_timer -= 1
 
-    run_speed_ctrl = self.param_OpkrAccelProfile and CS.acc_active and self.SC != None
+    run_speed_ctrl = CS.acc_active and self.SC != None and (CS.out.cruiseState.modeSel == 1 or CS.out.cruiseState.modeSel == 2 or CS.out.cruiseState.modeSel == 3)
     if not run_speed_ctrl:
       if CS.out.cruiseState.modeSel == 0:
         self.steer_mode = "오파모드"
@@ -253,7 +206,11 @@ class CarController():
         self.lkas_switch = "ON"
       else:
         self.lkas_switch = "-"
-      str_log2 = '주행모드={:s}  MDPS상태={:s}  LKAS버튼={:s}'.format( self.steer_mode, self.mdps_status, self.lkas_switch )
+      
+      if CS.out.cruiseState.modeSel == 3:
+        str_log2 = '주행모드={:s}  MDPS상태={:s}  LKAS버튼={:s}  AUTORES=(VS:{:03.0f}/CN:{:01.0f}/RD:{:03.0f}/BK:{})'.format( self.steer_mode, self.mdps_status, self.lkas_switch, CS.VSetDis, self.res_cnt, self.res_delay, CS.out.brakeLights )
+      else:
+        str_log2 = '주행모드={:s}  MDPS상태={:s}  LKAS버튼={:s}'.format( self.steer_mode, self.mdps_status, self.lkas_switch )
       trace1.printf2( '{}'.format( str_log2 ) )
 
     #print( 'st={} cmd={} long={}  steer={} req={}'.format(CS.out.cruiseState.standstill, pcm_cancel_cmd, self.CP.openpilotLongitudinalControl, apply_steer, steer_req ) )
@@ -261,9 +218,9 @@ class CarController():
 
     if pcm_cancel_cmd and self.CP.openpilotLongitudinalControl:
       can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.CANCEL, clu11_speed))
-    elif CS.out.cruiseState.standstill and not self.car_fingerprint == CAR.NIRO_EV:
+    elif CS.out.cruiseState.standstill:
       # run only first time when the car stopped
-      if self.last_lead_distance == 0 or not self.param_OpkrAutoResume:
+      if self.last_lead_distance == 0:
         # get the lead distance from the Radar
         self.last_lead_distance = CS.lead_distance
         self.resume_cnt = 0
@@ -275,10 +232,6 @@ class CarController():
         if self.resume_cnt > 5:
           self.last_resume_frame = frame
           self.resume_cnt = 0
-    elif CS.out.cruiseState.standstill and self.car_fingerprint == CAR.NIRO_EV:
-      if CS.lead_distance > 3.7 and (frame - self.last_resume_frame)*DT_CTRL > 0.2 and self.param_OpkrAutoResume:
-        can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.RES_ACCEL, clu11_speed))
-        self.last_resume_frame = frame
 
     # reset lead distnce after the car starts moving
     elif self.last_lead_distance != 0:
@@ -297,7 +250,7 @@ class CarController():
         self.res_delay = 50
       elif self.res_delay:
         self.res_delay -= 1
-      elif not self.res_delay and self.res_cnt < 0 and CS.VSetDis > 30 and CS.out.vEgo > 30 * CV.KPH_TO_MS:
+      elif not self.res_delay and self.res_cnt < 6 and CS.VSetDis > 30 and CS.out.vEgo > 30 * CV.KPH_TO_MS:
         can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.CANCEL, clu11_speed))
         can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.RES_ACCEL, clu11_speed))
         self.res_cnt += 1
@@ -306,7 +259,7 @@ class CarController():
         self.res_delay = 0
 
     # 20 Hz LFA MFA message
-    if frame % 5 == 0 and self.car_fingerprint in FEATURES["send_lfa_mfa"]:
+    if frame % 5 == 0 and self.car_fingerprint in [CAR.SONATA, CAR.PALISADE, CAR.IONIQ]:
       can_sends.append(create_lfa_mfa(self.packer, frame, enabled))
 
     self.lkas11_cnt += 1

@@ -32,8 +32,7 @@ static std::map<AudibleAlert, std::pair<const char *, int>> sound_map {
     {AudibleAlert::CHIME_MODE_OPENPILOT, {"../assets/sounds/modeopenpilot.wav", 0}},
     {AudibleAlert::CHIME_MODE_DISTCURV, {"../assets/sounds/modedistcurv.wav", 0}},
     {AudibleAlert::CHIME_MODE_DISTANCE, {"../assets/sounds/modedistance.wav", 0}},
-    {AudibleAlert::CHIME_MODE_AUTORES, {"../assets/sounds/modeautores.wav", 0}},
-    {AudibleAlert::CHIME_MODE_STOCK, {"../assets/sounds/modestock.wav", 0}}};
+    {AudibleAlert::CHIME_MODE_AUTORES, {"../assets/sounds/modeautores.wav", 0}}};
 
 
 struct Sound::Player {

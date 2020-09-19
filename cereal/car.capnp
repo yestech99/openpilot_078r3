@@ -112,14 +112,17 @@ struct CarEvent @0x9b1657f34caf3ad3 {
     wrongCruiseMode @87;
     neosUpdateRequired @88;
     modeldLagging @89;
-    laneChangeManual @90;
-    emgButtonManual @91;
-    driverSteering @92;
-    modeChangeOpenpilot @93;
-    modeChangeDistcurv @94;
-    modeChangeDistance @95;
-    modeChangeAutores @96;
-    modeChangeStock @97;
+    manualSteeringRequired @90;
+    manualSteeringRequiredBlinkersOn @91;
+    deviceFalling @92;
+    laneChangeManual @93;
+    emgButtonManual @94;
+    driverSteering @95;
+    modeChangeOpenpilot @96;
+    modeChangeDistcurv @97;
+    modeChangeDistance @98;
+    modeChangeAutores @99;
+    modeChangeStock @100;
   }
 }
 
@@ -171,14 +174,21 @@ struct CarState {
   leftBlinker @20 :Bool;
   rightBlinker @21 :Bool;
   genericToggle @23 :Bool;
+  distanceToggle @37 :Float32;
+  laneDepartureToggle @38 :Bool;
 
   # lock info
   doorOpen @24 :Bool;
   seatbeltUnlatched @25 :Bool;
   canValid @26 :Bool;
 
+
   # clutch (manual transmission only)
   clutchPressed @28 :Bool;
+
+  readdistancelines @39 :Float32;
+  lkMode @40 :Bool;
+  engineRPM @41 :Float32;
 
   # which packets this state came from
   canMonoTimes @12: List(UInt64);
@@ -355,7 +365,6 @@ struct CarControl {
       chimeModeDistcurv @18;
       chimeModeDistance @19;
       chimeModeAutores @20;
-      chimeModeStock @21;
     }
   }
 }
@@ -499,6 +508,7 @@ struct CarParams {
     volkswagenPq @21;
     subaruLegacy @22;  # pre-Global platform
     hyundaiLegacy @23;
+    hyundaiCommunity @24;
   }
 
   enum SteerControlType {

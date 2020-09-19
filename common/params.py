@@ -70,7 +70,6 @@ keys = {
   "HasAcceptedTerms": [TxType.PERSISTENT],
   "HasCompletedSetup": [TxType.PERSISTENT],
   "IsDriverViewEnabled": [TxType.CLEAR_ON_MANAGER_START],
-  "IsOpenpilotViewEnabled": [TxType.CLEAR_ON_MANAGER_START],
   "IsLdwEnabled": [TxType.PERSISTENT],
   "IsGeofenceEnabled": [TxType.PERSISTENT],
   "IsMetric": [TxType.PERSISTENT],
@@ -81,6 +80,7 @@ keys = {
   "IsUploadRawEnabled": [TxType.PERSISTENT],
   "LastAthenaPingTime": [TxType.PERSISTENT],
   "LastUpdateTime": [TxType.PERSISTENT],
+  "LastUpdateException": [TxType.PERSISTENT],
   "LimitSetSpeed": [TxType.PERSISTENT],
   "LimitSetSpeedNeural": [TxType.PERSISTENT],
   "LiveParameters": [TxType.PERSISTENT],
@@ -109,41 +109,8 @@ keys = {
   "Offroad_InvalidTime": [TxType.CLEAR_ON_MANAGER_START],
   "Offroad_IsTakingSnapshot": [TxType.CLEAR_ON_MANAGER_START],
   "Offroad_NeosUpdate": [TxType.CLEAR_ON_MANAGER_START],
-  "OpkrAutoShutdown": [TxType.PERSISTENT],
-  "OpkrAutoScreenOff": [TxType.PERSISTENT],
-  "OpkrUIBrightness": [TxType.PERSISTENT],
-  "OpkrEnableDriverMonitoring": [TxType.PERSISTENT],
+  "Offroad_UpdateFailed": [TxType.CLEAR_ON_MANAGER_START],
   "OpkrEnableLogger": [TxType.PERSISTENT],
-  "OpkrEnableGetoffAlert": [TxType.PERSISTENT],
-  "OpkrAutoResume": [TxType.PERSISTENT],
-  "OpkrAccelProfile": [TxType.PERSISTENT],
-  "OpkrAutoLanechangedelay": [TxType.PERSISTENT],
-  "PutPrebuiltOn": [TxType.PERSISTENT],
-  "FingerprintIssuedFix": [TxType.PERSISTENT],
-  "LdwsCarFix": [TxType.PERSISTENT],
-  "LateralControlMethod": [TxType.PERSISTENT],
-  "CruiseStatemodeSelInit": [TxType.PERSISTENT],
-  "LateralControlPriority": [TxType.PERSISTENT],
-  "OuterLoopGain": [TxType.PERSISTENT],
-  "InnerLoopGain": [TxType.PERSISTENT],
-  "TimeConstant": [TxType.PERSISTENT],
-  "ActuatorEffectiveness": [TxType.PERSISTENT],
-  "Scale": [TxType.PERSISTENT],
-  "LqrKi": [TxType.PERSISTENT],
-  "DcGain": [TxType.PERSISTENT],
-  "IgnoreZone": [TxType.PERSISTENT],
-  "PidKp": [TxType.PERSISTENT],
-  "PidKi": [TxType.PERSISTENT],
-  "PidKf": [TxType.PERSISTENT],
-  "CameraOffsetAdj": [TxType.PERSISTENT],
-  "SteerRatioAdj": [TxType.PERSISTENT],
-  "SteerActuatorDelayAdj": [TxType.PERSISTENT],
-  "SteerRateCostAdj": [TxType.PERSISTENT],
-  "SteerLimitTimerAdj": [TxType.PERSISTENT],
-  "TireStiffnessFactorAdj": [TxType.PERSISTENT],
-  "SteerMaxAdj": [TxType.PERSISTENT],
-  "SteerDeltaUpAdj": [TxType.PERSISTENT],
-  "SteerDeltaDownAdj": [TxType.PERSISTENT],
 }
 
 
@@ -355,14 +322,15 @@ def write_db(params_path, key, value):
   lock.acquire()
 
   try:
-    tmp_path = tempfile.mktemp(prefix=".tmp", dir=params_path)
-    with open(tmp_path, "wb") as f:
+    tmp_path = tempfile.NamedTemporaryFile(mode="wb", prefix=".tmp", dir=params_path, delete=False)
+    with tmp_path as f:
       f.write(value)
       f.flush()
       os.fsync(f.fileno())
+    os.chmod(tmp_path.name, 0o666)
 
     path = "%s/d/%s" % (params_path, key)
-    os.rename(tmp_path, path)
+    os.rename(tmp_path.name, path)
     fsync_dir(os.path.dirname(path))
   finally:
     os.umask(prev_umask)
@@ -434,54 +402,6 @@ class Params():
       raise UnknownKeyName(key)
 
     write_db(self.db, key, dat)
-
-
-  def get_OpkrAutoShutdown(self):
-      cvt_dictionary = {
-          0:0,
-          1:1,
-          2:30,
-          3:60,
-          4:180,
-          5:300,
-          6:600,
-          7:1800,
-          8:3600,
-          9:10800,
-          10:18000,
-      }
-
-      nID = int( self.get("OpkrAutoShutdown") )
-      value = 0
-      try:
-          value = cvt_dictionary[nID]
-      except:
-          value = 0
-
-      return  value
-
-
-  def get_OpkrAutoLanechangedelay(self):
-      cvt_dictionary = {
-          0:0.0,
-          1:0.1,
-          2:0.5,
-          3:1.0,
-          4:1.5,
-          5:2.0,
-      }
-
-      nID = int(  self.get("OpkrAutoLanechangedelay") )
-      value = 0
-      try:
-          value = cvt_dictionary[nID]
-      except:
-          value = 0
-
-      return  value    
-
-
-
 
 
 def put_nonblocking(key, val):

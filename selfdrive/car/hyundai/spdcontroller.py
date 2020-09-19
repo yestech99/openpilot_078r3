@@ -14,7 +14,6 @@ from selfdrive.controls.lib.long_mpc import LongitudinalMpc
 
 from selfdrive.car.hyundai.values import Buttons, SteerLimitParams
 from common.numpy_fast import clip, interp
-from common.params import Params
 
 from selfdrive.config import RADAR_TO_CAMERA
 
@@ -75,8 +74,8 @@ class SpdController():
 
         self.traceSC = trace1.Loger("SPD_CTRL")
 
-        self.wheelbase = 2.845
-        self.steerRatio = 12.5  # 12.5
+        self.wheelbase = 2.8
+        self.steerRatio = 13.5  # 13.5
 
         self.v_model = 0
         self.a_model = 0
@@ -103,9 +102,7 @@ class SpdController():
         self.btn_type = Buttons.NONE
         self.active_time = 0
 
-        self.params = Params()
-        self.param_OpkrAccelProfile = int(self.params.get('OpkrAccelProfile'))
-        self.cruise_set_mode = int(self.params.get('CruiseStatemodeSelInit'))
+        self.cruise_set_mode = 1
 
 
     def reset(self):
@@ -154,7 +151,7 @@ class SpdController():
 
 
     def update_cruiseSW(self, CS ):
-        set_speed_kph = self.cruise_set_speed_kph
+        set_speed_kph = int(round(self.cruise_set_speed_kph))
         delta_vsetdis = 0
         if CS.acc_active:
             delta_vsetdis = abs(int(CS.VSetDis) - self.prev_VSetDis)
@@ -167,7 +164,7 @@ class SpdController():
                     if self.curise_set_first:
                         self.curise_set_first = 0
                         set_speed_kph =  int(CS.VSetDis)
-                    elif delta_vsetdis > 5:
+                    elif delta_vsetdis > 0:
                         set_speed_kph = int(CS.VSetDis)
                     elif not self.curise_sw_check:
                         set_speed_kph += 1
@@ -175,7 +172,7 @@ class SpdController():
                     if self.curise_set_first:
                         self.curise_set_first = 0
                         set_speed_kph = int(CS.VSetDis)
-                    elif delta_vsetdis > 5:
+                    elif delta_vsetdis > 0:
                         set_speed_kph = int(CS.VSetDis)
                     elif not self.curise_sw_check:
                         set_speed_kph -= 1
@@ -197,7 +194,7 @@ class SpdController():
                 self.prev_clu_CruiseSwState = CS.cruise_buttons
             
 
-        if set_speed_kph < 30:
+        if set_speed_kph <= 30:
             set_speed_kph = 30
 
         self.cruise_set_speed_kph = set_speed_kph
@@ -224,15 +221,13 @@ class SpdController():
     def get_tm_speed(self, CS, set_time, add_val, safety_dis=5):
         time = int(set_time)
 
-        delta_speed = int(CS.VSetDis) - CS.clu_Vanz
+        delta_speed = int(CS.VSetDis) - int(round(CS.clu_Vanz))
         set_speed = int(CS.VSetDis) + add_val
         
         if add_val > 0:  # 증가
             if delta_speed > safety_dis:
-              if self.param_OpkrAccelProfile == 3:
-                time = int(set_time)
-              else:
-                time = 100
+              time = int(set_time)
+
         else:
             if delta_speed < -safety_dis:
               time = 100
@@ -261,7 +256,7 @@ class SpdController():
         btn_type = Buttons.NONE
         #lead_1 = sm['radarState'].leadOne
         long_wait_cmd = 500
-        set_speed = self.cruise_set_speed_kph
+        set_speed = int(round(self.cruise_set_speed_kph))
 
         if self.long_curv_timer < 600:
             self.long_curv_timer += 1
@@ -285,34 +280,27 @@ class SpdController():
             set_speed = lead_set_speed
             long_wait_cmd = lead_wait_cmd
 
-        if set_speed > self.cruise_set_speed_kph:
-            set_speed = self.cruise_set_speed_kph
-        elif set_speed < 30:
+        if set_speed >= int(round(self.cruise_set_speed_kph)):
+            set_speed = int(round(self.cruise_set_speed_kph))
+        elif set_speed <= 30:
             set_speed = 30
 
         # control process
         target_set_speed = set_speed
-        delta = int(set_speed) - int(CS.VSetDis)
+        delta = int(round(set_speed)) - int(CS.VSetDis)
         dec_step_cmd = 1
 
 
         if self.long_curv_timer < long_wait_cmd:
             pass
+        elif delta > 0:
+            set_speed = int(CS.VSetDis) + dec_step_cmd
+            btn_type = Buttons.RES_ACCEL
+            self.long_curv_timer = 0
         elif delta < 0:
             set_speed = int(CS.VSetDis) - dec_step_cmd
             btn_type = Buttons.SET_DECEL
             self.long_curv_timer = 0
-        elif delta > 0:
-            if CS.driverOverride == 1:  # 가속패달에 의한 속도 설정.
-                if self.cruise_set_speed_kph > int(CS.clu_Vanz):
-                    delta = int(CS.clu_Vanz) - int(CS.VSetDis)
-                    if delta > 1:
-                        set_speed = int(CS.clu_Vanz)
-                        btn_type = Buttons.SET_DECEL
-            else:
-                set_speed = int(CS.VSetDis) + dec_step_cmd
-                btn_type = Buttons.RES_ACCEL
-                self.long_curv_timer = 0
         if self.cruise_set_mode == 0:
             btn_type = Buttons.NONE
 
@@ -326,7 +314,7 @@ class SpdController():
 
     def update(self, CS, sm, CC ):
         self.cruise_set_mode = CS.out.cruiseState.modeSel
-        self.cruise_set_speed_kph = CS.out.cruiseState.speed * CV.MS_TO_KPH
+        self.cruise_set_speed_kph = int(round(CS.out.cruiseState.speed * CV.MS_TO_KPH))
         if CS.driverOverride == 2 or not CS.acc_active or CS.cruise_buttons == Buttons.RES_ACCEL or CS.cruise_buttons == Buttons.SET_DECEL:
             self.resume_cnt = 0
             self.btn_type = Buttons.NONE

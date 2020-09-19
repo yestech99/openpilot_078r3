@@ -19,7 +19,7 @@ WEBCAM = os.getenv("WEBCAM") is not None
 sys.path.append(os.path.join(BASEDIR, "pyextra"))
 os.environ['BASEDIR'] = BASEDIR
 
-TOTAL_SCONS_NODES = 1140
+TOTAL_SCONS_NODES = 1005
 prebuilt = os.path.exists(os.path.join(BASEDIR, 'prebuilt'))
 
 # Create folders needed for msgq
@@ -70,19 +70,15 @@ def unblock_stdout():
 if __name__ == "__main__":
   unblock_stdout()
 
-if __name__ == "__main__" and ANDROID:
-  from common.spinner import Spinner
-  from common.text_window import TextWindow
-else:
-  from common.spinner import FakeSpinner as Spinner
-  from common.text_window import FakeTextWindow as TextWindow
+from common.spinner import Spinner
+from common.text_window import TextWindow
 
 import importlib
 import traceback
 from multiprocessing import Process
 
 # Run scons
-spinner = Spinner()
+spinner = Spinner(noop=(__name__ != "__main__" or not ANDROID))
 spinner.update("0")
 
 if not prebuilt:
@@ -142,8 +138,9 @@ if not prebuilt:
         cloudlog.error("scons build failed\n" + error_s)
 
         # Show TextWindow
+        no_ui = __name__ != "__main__" or not ANDROID
         error_s = "\n \n".join(["\n".join(textwrap.wrap(e, 65)) for e in errors])
-        with TextWindow("openpilot failed to build\n \n" + error_s) as t:
+        with TextWindow("openpilot failed to build\n \n" + error_s, noop=no_ui) as t:
           t.wait_for_exit()
 
         exit(1)
@@ -192,7 +189,6 @@ managed_processes = {
   "updated": "selfdrive.updated",
   "dmonitoringmodeld": ("selfdrive/modeld", ["./dmonitoringmodeld"]),
   "modeld": ("selfdrive/modeld", ["./modeld"]),
-  "driverview": "selfdrive.monitoring.driverview",
 }
 
 daemon_processes = {
@@ -210,7 +206,7 @@ unkillable_processes = ['camerad']
 interrupt_processes: List[str] = []
 
 # processes to end with SIGKILL instead of SIGTERM
-kill_processes = ['sensord', 'paramsd']
+kill_processes = ['sensord']
 
 # processes to end if thermal conditions exceed Green parameters
 green_temp_processes = ['uploader']
@@ -243,6 +239,12 @@ car_started_processes = [
   'proclogd',
   'ubloxd',
   'locationd',
+]
+
+driver_view_processes = [
+  'camerad',
+  'dmonitoringd',
+  'dmonitoringmodeld'
 ]
 
 if WEBCAM:
@@ -387,6 +389,14 @@ def cleanup_all_processes(signal, frame):
     kill_managed_process(name)
   cloudlog.info("everything is dead")
 
+
+def send_managed_process_signal(name, sig):
+  if name not in running or name not in managed_processes:
+    return
+  cloudlog.info(f"sending signal {sig} to {name}")
+  os.kill(running[name].pid, sig)
+
+
 # ****************** run loop ******************
 
 def manager_init(should_register=True):
@@ -427,10 +437,11 @@ def manager_thread():
   # now loop
   thermal_sock = messaging.sub_sock('thermal')
 
+  if os.getenv("GET_CPU_USAGE"):
+    proc_sock = messaging.sub_sock('procLog', conflate=True)
+
   cloudlog.info("manager start")
   cloudlog.info({"environ": os.environ})
-
-
 
   params = Params()
 
@@ -449,6 +460,7 @@ def manager_thread():
   else:
     # save boot log
     subprocess.call(["./loggerd", "--bootlog"], cwd=os.path.join(BASEDIR, "selfdrive/loggerd"))  
+
 
   # start daemon processes
   for p in daemon_processes:
@@ -470,7 +482,11 @@ def manager_thread():
     for k in os.getenv("BLOCK").split(","):
       del managed_processes[k]
 
+  started_prev = False
   logger_dead = False
+
+  start_t = time.time()
+  first_proc = None
 
   while 1:
     msg = messaging.recv_sock(thermal_sock, wait=True)
@@ -488,21 +504,32 @@ def manager_thread():
     if msg.thermal.freeSpace < 0.05:
       logger_dead = True
 
-    if msg.thermal.started and "driverview" not in running:
+    if msg.thermal.started:
       for p in car_started_processes:
-        if p == "loggerd" and logger_dead:
+        if (p == "loggerd" and logger_dead) or p == "uploader":
           kill_managed_process(p)
         else:
           start_managed_process(p)
     else:
       logger_dead = False
+      driver_view = params.get("IsDriverViewEnabled") == b"1"
+
+      # TODO: refactor how manager manages processes
       for p in reversed(car_started_processes):
-        kill_managed_process(p)
-      # this is ugly
-      if "driverview" not in running and params.get("IsDriverViewEnabled") == b"1":
-      	start_managed_process("driverview")
-      elif "driverview" in running and params.get("IsDriverViewEnabled") == b"0":
-        kill_managed_process("driverview")
+        if p not in driver_view_processes or not driver_view:
+          kill_managed_process(p)
+
+      for p in driver_view_processes:
+        if driver_view:
+          start_managed_process(p)
+        else:
+          kill_managed_process(p)
+
+      # trigger an update after going offroad
+      if started_prev:
+        send_managed_process_signal("updated", signal.SIGHUP)
+
+    started_prev = msg.thermal.started
 
     # check the status of all processes, did any of them die?
     running_list = ["%s%s\u001b[0m" % ("\u001b[32m" if running[p].is_alive() else "\u001b[31m", p) for p in running]
@@ -511,6 +538,20 @@ def manager_thread():
     # Exit main loop when uninstall is needed
     if params.get("DoUninstall", encoding='utf8') == "1":
       break
+
+    if os.getenv("GET_CPU_USAGE"):
+      dt = time.time() - start_t
+
+      # Get first sample
+      if dt > 30 and first_proc is None:
+        first_proc = messaging.recv_sock(proc_sock)
+
+      # Get last sample and exit
+      if dt > 90:
+        last_proc = messaging.recv_sock(proc_sock, wait=True)
+
+        cleanup_all_processes(None, None)
+        sys.exit(print_cpu_usage(first_proc, last_proc))
 
 def manager_prepare(spinner=None):
   # build all processes
@@ -563,42 +604,7 @@ def main():
     ("OpenpilotEnabledToggle", "1"),
     ("LaneChangeEnabled", "1"),
     ("IsDriverViewEnabled", "0"),
-    ("IsOpenpilotViewEnabled", "0"),
-    ("OpkrAutoShutdown", "0"),
-    ("OpkrAutoScreenOff", "0"),
-    ("OpkrUIBrightness", "0"),
-    ("OpkrEnableDriverMonitoring", "1"),
     ("OpkrEnableLogger", "0"),
-    ("OpkrEnableGetoffAlert", "1"),
-    ("OpkrAutoResume", "1"),
-    ("OpkrAccelProfile", "0"),
-    ("OpkrAutoLanechangedelay", "0"),
-    ("PutPrebuiltOn", "0"),
-    ("FingerprintIssuedFix", "0"),
-    ("LdwsCarFix", "0"),
-    ("LateralControlMethod", "0"),
-    ("CruiseStatemodeSelInit", "0"),
-    ("LateralControlPriority", "0"),
-    ("OuterLoopGain", "20"),
-    ("InnerLoopGain", "30"),
-    ("TimeConstant", "10"),
-    ("ActuatorEffectiveness", "15"),
-    ("Scale", "1850"),
-    ("LqrKi", "30"),
-    ("DcGain", "30"),
-    ("IgnoreZone", "0"),
-    ("PidKp", "20"),
-    ("PidKi", "40"),
-    ("PidKf", "4"),
-    ("CameraOffsetAdj", "60"),
-    ("SteerRatioAdj", "165"),
-    ("SteerActuatorDelayAdj", "30"),
-    ("SteerRateCostAdj", "50"),
-    ("SteerLimitTimerAdj", "40"),
-    ("TireStiffnessFactorAdj", "100"),
-    ("SteerMaxAdj", "255"),
-    ("SteerDeltaUpAdj", "3"),
-    ("SteerDeltaDownAdj", "7"),
   ]
 
   # set unset params
@@ -627,6 +633,8 @@ def main():
 
   try:
     manager_thread()
+  except SystemExit:
+    raise
   except Exception:
     traceback.print_exc()
     crash.capture_exception()

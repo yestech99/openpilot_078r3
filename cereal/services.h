@@ -68,6 +68,7 @@ static struct service services[] = {
   { .name = "frontFrame", .port = 8072, .should_log = true, .frequency = 10, .decimation = -1 },
   { .name = "dMonitoringState", .port = 8073, .should_log = true, .frequency = 5, .decimation = 1 },
   { .name = "offroadLayout", .port = 8074, .should_log = false, .frequency = 0, .decimation = -1 },
+  { .name = "wideEncodeIdx", .port = 8075, .should_log = true, .frequency = 20, .decimation = -1 },
   { .name = "testModel", .port = 8040, .should_log = false, .frequency = 0, .decimation = -1 },
   { .name = "testLiveLocation", .port = 8045, .should_log = false, .frequency = 0, .decimation = -1 },
   { .name = "testJoystick", .port = 8056, .should_log = false, .frequency = 0, .decimation = -1 },

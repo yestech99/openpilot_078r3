@@ -22,12 +22,12 @@ class CarInterfaceBase():
 
     self.frame = 0
     self.low_speed_alert = False
-    self.cruise_enabled_prev = False    
 
     if CarState is not None:
       self.CS = CarState(CP)
       self.cp = self.CS.get_can_parser(CP)
       self.cp_cam = self.CS.get_cam_can_parser(CP)
+      self.cp_body = self.CS.get_body_can_parser(CP)
 
     self.CC = None
     if CarController is not None:
@@ -42,7 +42,7 @@ class CarInterfaceBase():
     raise NotImplementedError
 
   @staticmethod
-  def get_params(candidate, fingerprint=gen_empty_fingerprint(), has_relay=False, car_fw=[]):  # pylint: disable=dangerous-default-value
+  def get_params(candidate, fingerprint=gen_empty_fingerprint(), has_relay=False, car_fw=None):
     raise NotImplementedError
 
   # returns a set of default params to avoid repetition in car specific params
@@ -82,7 +82,7 @@ class CarInterfaceBase():
     raise NotImplementedError
 
   # return sendcan, pass in a car.CarControl
-  def apply(self, c):
+  def apply(self, c, sm):
     raise NotImplementedError
 
   def create_common_events(self, cs_out, extra_gears=[], gas_resume_speed=-1, pcm_enable=True):  # pylint: disable=dangerous-default-value
@@ -125,20 +125,11 @@ class CarInterfaceBase():
         events.add(EventName.pedalPressed)
 
     # we engage when pcm is active (rising edge)
-    #if pcm_enable:
-    #  if cs_out.cruiseState.enabled and not self.CS.out.cruiseState.enabled:
-    #    events.add(EventName.pcmEnable)
-    #  elif not cs_out.cruiseState.enabled:
-    #    events.add(EventName.pcmDisable)
-
-    if not pcm_enable:
-      pass
-    elif cs_out.cruiseState.enabled != self.cruise_enabled_prev:
-      if cs_out.cruiseState.enabled:
+    if pcm_enable:
+      if cs_out.cruiseState.enabled and not self.CS.out.cruiseState.enabled:
         events.add(EventName.pcmEnable)
-      else:
+      elif not cs_out.cruiseState.enabled:
         events.add(EventName.pcmDisable)
-      self.cruise_enabled_prev = cs_out.cruiseState.enabled    
 
     return events
 
@@ -147,13 +138,12 @@ class RadarInterfaceBase():
     self.pts = {}
     self.delay = 0
     self.radar_ts = CP.radarTimeStep
+    self.no_radar_sleep = 'NO_RADAR_SLEEP' in os.environ
 
   def update(self, can_strings):
     ret = car.RadarData.new_message()
-
-    if 'NO_RADAR_SLEEP' not in os.environ:
+    if not self.no_radar_sleep:
       time.sleep(self.radar_ts)  # radard runs on RI updates
-
     return ret
 
 class CarStateBase:
@@ -185,4 +175,8 @@ class CarStateBase:
 
   @staticmethod
   def get_cam_can_parser(CP):
+    return None
+
+  @staticmethod
+  def get_body_can_parser(CP):
     return None

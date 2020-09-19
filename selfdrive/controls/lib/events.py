@@ -1,7 +1,8 @@
 ﻿# This Python file uses the following encoding: utf-8
 # -*- coding: utf-8 -*-
-from cereal import log, car
+from functools import total_ordering
 
+from cereal import log, car
 from common.realtime import DT_CTRL
 from selfdrive.config import Conversions as CV
 from selfdrive.locationd.calibration_helpers import Filter
@@ -95,6 +96,7 @@ class Events:
       ret.append(event)
     return ret
 
+@total_ordering
 class Alert:
   def __init__(self,
                alert_text_1,
@@ -137,6 +139,9 @@ class Alert:
 
   def __gt__(self, alert2):
     return self.alert_priority > alert2.alert_priority
+
+  def __eq__(self, alert2):
+    return self.alert_priority == alert2.alert_priority
 
 class NoEntryAlert(Alert):
   def __init__(self, alert_text_2, audible_alert=AudibleAlert.chimeError,
@@ -221,7 +226,7 @@ EVENTS = {
       "오픈파일럿 사용준비가 되었습니다",
       "안전운전을 위해 항상 핸들을 잡고 도로교통 상황을 주시하세요",
       AlertStatus.normal, AlertSize.mid,
-      Priority.LOWER, VisualAlert.none, AudibleAlert.chimeReady, 5., 0., 5.),
+      Priority.LOWER, VisualAlert.none, AudibleAlert.none, 5., 0., 5.),
   },
 
   EventName.startupWhitePanda: {
@@ -486,7 +491,7 @@ EVENTS = {
       "운전자 직접 조향중",
       "자동조향이 일시 비활성화 됩니다",
       AlertStatus.userPrompt, AlertSize.mid,
-      Priority.LOW, VisualAlert.none, AudibleAlert.none, .0, .1, .1, alert_rate=0.75),
+      Priority.LOW, VisualAlert.none, AudibleAlert.none, .0, .1, .1),
   },  
 
   EventName.steerSaturated: {
@@ -526,14 +531,6 @@ EVENTS = {
       AlertStatus.normal, AlertSize.small,
       Priority.LOW, VisualAlert.none, AudibleAlert.chimeModeAutores, 1., 0, 1.),
   },
-  EventName.modeChangeStock: {
-    ET.WARNING: Alert(
-      "순정 모드",
-      "",
-      AlertStatus.normal, AlertSize.small,
-      Priority.LOW, VisualAlert.none, AudibleAlert.chimeModeStock, 1., 0, 1.),
-  },
-
 
   # ********** events that affect controls state transitions **********
 
@@ -584,18 +581,9 @@ EVENTS = {
       "핸들을 잡아주세요",
       "조향제어가 일시적으로 비활성화 되었습니다",
       AlertStatus.userPrompt, AlertSize.mid,
-      Priority.LOW, VisualAlert.none, AudibleAlert.none, .4, 2., 3.),
+      Priority.LOW, VisualAlert.steerRequired, AudibleAlert.chimeWarning1, .4, 2., 3.),
     ET.NO_ENTRY: NoEntryAlert("조향제어가 일시적으로 비활성화 되었습니다",
                               duration_hud_alert=0.),
-  },
-
-  EventName.posenetInvalid: {
-    ET.WARNING: Alert(
-      "핸들을 잡아주세요",
-      "전방 영상 인식 불안",
-      AlertStatus.userPrompt, AlertSize.mid,
-      Priority.LOW, VisualAlert.steerRequired, AudibleAlert.chimeWarning1, .4, 2., 3.),
-    ET.NO_ENTRY: NoEntryAlert("전방 영상 인식 불안"),
   },
 
   EventName.focusRecoverActive: {
@@ -656,7 +644,7 @@ EVENTS = {
   },
 
   EventName.wrongGear: {
-    ET.USER_DISABLE: EngagementAlert(AudibleAlert.chimeDisengage),  #ET.SOFT_DISABLE: SoftDisableAlert("기어가 드라이브모드가 아닙니다"),
+    ET.SOFT_DISABLE: SoftDisableAlert("기어가 드라이브모드가 아닙니다"),
     ET.NO_ENTRY: NoEntryAlert("기어가 드라이브모드가 아닙니다"),
   },
 
@@ -716,6 +704,16 @@ EVENTS = {
   EventName.modeldLagging: {
     ET.SOFT_DISABLE: SoftDisableAlert("주행 모델 지연"),
     ET.NO_ENTRY : NoEntryAlert("주행 모델 지연"),
+  },
+
+  EventName.posenetInvalid: {
+    ET.SOFT_DISABLE: SoftDisableAlert("전방 영상인식이 원할하지 않습니다"),
+    ET.NO_ENTRY: NoEntryAlert("전방 영상인식이 원할하지 않습니다"),
+  },
+
+  EventName.deviceFalling: {
+    ET.SOFT_DISABLE: SoftDisableAlert("장치의 마운트 연결이 불안합니다"),
+    ET.NO_ENTRY: NoEntryAlert("장치의 마운트 연결이 불안합니다"),
   },
 
   EventName.lowMemory: {

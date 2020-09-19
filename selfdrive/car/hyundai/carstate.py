@@ -1,5 +1,5 @@
 from cereal import car
-from selfdrive.car.hyundai.values import DBC, STEER_THRESHOLD, FEATURES, CAR, EV_HYBRID
+from selfdrive.car.hyundai.values import DBC, STEER_THRESHOLD, FEATURES, EV_HYBRID
 from selfdrive.car.interfaces import CarStateBase
 from opendbc.can.parser import CANParser
 from selfdrive.config import Conversions as CV
@@ -30,6 +30,7 @@ class CarState(CarStateBase):
 
     self.main_on = False
     self.acc_active = False
+    
     self.cruiseState_modeSel = 0
 
     self.driverAcc_time = 0
@@ -147,6 +148,12 @@ class CarState(CarStateBase):
     self.steer_state = cp_mdps.vl["MDPS12"]['CF_Mdps_ToiActive']  # 0 NOT ACTIVE, 1 ACTIVE
     self.lead_distance = cp_scc.vl["SCC11"]['ACC_ObjDist']
 
+    #TPMS
+    self.tpmsPressureFl = cp.vl["TPMS11"]['PRESSURE_FL'] * 5 * 0.145
+    self.tpmsPressureFr = cp.vl["TPMS11"]['PRESSURE_FR'] * 5 * 0.145
+    self.tpmsPressureRl = cp.vl["TPMS11"]['PRESSURE_RL'] * 5 * 0.145
+    self.tpmsPressureRr = cp.vl["TPMS11"]['PRESSURE_RR'] * 5 * 0.145
+
     return ret
 
   def update_blinker(self, cp):
@@ -156,14 +163,14 @@ class CarState(CarStateBase):
     rightBlinker = cp.vl["CGW1"]['CF_Gway_TurnSigRh'] != 0
 
     if leftBlinker and not rightBlinker:
-      self.left_blinker_flash = 100
+      self.left_blinker_flash = 200
       self.right_blinker_flash = 0
     elif rightBlinker and not leftBlinker:
-      self.right_blinker_flash = 100
+      self.right_blinker_flash = 200
       self.left_blinker_flash = 0
     elif leftBlinker and rightBlinker:
-      self.left_blinker_flash = 100
-      self.right_blinker_flash = 100
+      self.left_blinker_flash = 200
+      self.right_blinker_flash = 200
 
     if  self.left_blinker_flash:
       self.left_blinker_flash -= 1
@@ -376,6 +383,16 @@ class CarState(CarStateBase):
       ("ACC_ObjDist", "SCC11", 0),
       ("ACC_ObjRelSpd", "SCC11", 0),
       ("ACCMode", "SCC12", 1),
+
+      ("Navi_SCC_Curve_Status", "SCC11", 0),
+      ("Navi_SCC_Curve_Act", "SCC11", 0),
+      ("Navi_SCC_Camera_Act", "SCC11", 0),
+      ("Navi_SCC_Camera_Status", "SCC11", 0),
+
+      ("PRESSURE_FL", "TPMS11", 0),
+      ("PRESSURE_FR", "TPMS11", 0),
+      ("PRESSURE_RL", "TPMS11", 0),
+      ("PRESSURE_RR", "TPMS11", 0),
 
 
       #("LFA_USM", "LFAHDA_MFC", 0),
