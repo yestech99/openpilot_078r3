@@ -244,19 +244,19 @@ class CarController():
       else:
         self.resume_cnt = 0
     
-    if CS.out.cruiseState.modeSel == 3:
-      if CS.out.brakeLights and CS.VSetDis > 30:
-        self.res_cnt = 0
-        self.res_delay = 50
-      elif self.res_delay:
-        self.res_delay -= 1
-      elif not self.res_delay and self.res_cnt < 6 and CS.VSetDis > 30 and CS.out.vEgo > 30 * CV.KPH_TO_MS:
-        can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.CANCEL, clu11_speed))
-        can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.RES_ACCEL, clu11_speed))
-        self.res_cnt += 1
-      else:
-        self.res_cnt = 7
-        self.res_delay = 0
+    #if CS.out.cruiseState.modeSel == 3:
+    #  if CS.out.brakeLights and CS.VSetDis > 30:
+    #    self.res_cnt = 0
+    #    self.res_delay = 50
+    #  elif self.res_delay:
+    #    self.res_delay -= 1
+    #  elif not self.res_delay and self.res_cnt < 6 and CS.VSetDis > 30 and CS.out.vEgo > 30 * CV.KPH_TO_MS:
+    #    can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.CANCEL, clu11_speed))
+    #    can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.RES_ACCEL, clu11_speed))
+    #    self.res_cnt += 1
+    #  else:
+    #    self.res_cnt = 7
+    #    self.res_delay = 0
 
     # 20 Hz LFA MFA message
     if frame % 5 == 0 and self.car_fingerprint in [CAR.SONATA, CAR.PALISADE, CAR.IONIQ]:

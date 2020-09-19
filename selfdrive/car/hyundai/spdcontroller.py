@@ -102,7 +102,7 @@ class SpdController():
         self.btn_type = Buttons.NONE
         self.active_time = 0
 
-        self.cruise_set_mode = 1
+        self.cruise_set_mode = 0
 
 
     def reset(self):
