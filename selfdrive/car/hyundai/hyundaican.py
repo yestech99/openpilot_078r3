@@ -8,7 +8,7 @@ hyundai_checksum = crcmod.mkCrcFun(0x11D, initCrc=0xFD, rev=False, xorOut=0xdf)
 def create_lkas11(packer, frame, car_fingerprint, apply_steer, steer_req,
                   lkas11, sys_warning, sys_state, CC, enabled, bus):
   values = copy.deepcopy( lkas11 )
-  #values["CF_Lkas_LdwsSysState"] = 3 if enabled else 1
+  values["CF_Lkas_LdwsSysState"] = 3 if enabled else 1
   values["CF_Lkas_SysWarning"] = 3 if sys_warning else 0
   values["CR_Lkas_StrToqReq"] = apply_steer
   values["CF_Lkas_ActToi"] = steer_req
@@ -21,20 +21,7 @@ def create_lkas11(packer, frame, car_fingerprint, apply_steer, steer_req,
   if car_fingerprint in [CAR.PALISADE, CAR.SONATA]:
     values["CF_Lkas_Bca_R"] = int(CC.hudControl.leftLaneVisible) + (int(CC.hudControl.rightLaneVisible) << 1)
     values["CF_Lkas_LdwsActivemode"] = int(CC.hudControl.leftLaneVisible) + (int(CC.hudControl.rightLaneVisible) << 1)
-    values["CF_Lkas_LdwsOpt_USM"] = 2
 
-    # FcwOpt_USM 5 = Orange blinking car + lanes
-    # FcwOpt_USM 4 = Orange car + lanes
-    # FcwOpt_USM 3 = Green blinking car + lanes
-    # FcwOpt_USM 2 = Green car + lanes
-    # FcwOpt_USM 1 = White car + lanes
-    # FcwOpt_USM 0 = No car + lanes
-    values["CF_Lkas_FcwOpt_USM"] = 1 if enabled else 1
-
-    # SysWarning 4 = keep hands on wheel
-    # SysWarning 5 = keep hands on wheel (red)
-    # SysWarning 6 = keep hands on wheel (red) + beep
-    # Note: the warning is hidden while the blinkers are on
     values["CF_Lkas_SysWarning"] = 4 if sys_warning else 0
 
   if car_fingerprint in CHECKSUM["crc8"]:
