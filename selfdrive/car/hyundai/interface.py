@@ -75,6 +75,19 @@ class CarInterface(CarInterfaceBase):
       ret.lateralTuning.lqr.l = [0.22, 0.318]
       ret.lateralTuning.lqr.dcGain = 0.0025
 
+    elif candidate == CAR.PALISADE:
+      ret.lateralTuning.init('lqr')
+      ret.lateralTuning.lqr.scale = Scale
+      ret.lateralTuning.lqr.ki = LqrKi
+      ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+      ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+      ret.lateralTuning.lqr.c = [1., 0.]
+      ret.lateralTuning.lqr.k = [-100., 450.]
+      ret.lateralTuning.lqr.l = [0.22, 0.318]
+      ret.lateralTuning.lqr.dcGain = DcGain
+      ret.mass = 1955. + STD_CARGO_KG
+      ret.wheelbase = 2.90
+
     # these cars require a special panda safety mode due to missing counters and checksums in the messages
     if candidate == CAR.HYUNDAI_GENESIS:
       ret.safetyModel = car.CarParams.SafetyModel.hyundaiLegacy
