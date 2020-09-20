@@ -75,7 +75,7 @@ class CarInterface(CarInterfaceBase):
       ret.lateralTuning.lqr.l = [0.22, 0.318]
       ret.lateralTuning.lqr.dcGain = 0.0025
 
-    elif candidate == CAR.PALISADE:
+    elif candidate == CAR.SONATA:
       #ret.lateralTuning.init('lqr')
       #ret.lateralTuning.lqr.scale = 1750.0
       #ret.lateralTuning.lqr.ki = 0.02
