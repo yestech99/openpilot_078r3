@@ -18,6 +18,24 @@ def create_lkas11(packer, frame, car_fingerprint, apply_steer, steer_req,
 
   dat = packer.make_can_msg("LKAS11", 0, values)[2]
 
+  if car_fingerprint in [CAR.PALISADE]:
+    values["CF_Lkas_Bca_R"] = int(CC.hudControl.leftLaneVisible) + (int(CC.hudControl.rightLaneVisible) << 1)
+    values["CF_Lkas_LdwsOpt_USM"] = 2
+
+    # FcwOpt_USM 5 = Orange blinking car + lanes
+    # FcwOpt_USM 4 = Orange car + lanes
+    # FcwOpt_USM 3 = Green blinking car + lanes
+    # FcwOpt_USM 2 = Green car + lanes
+    # FcwOpt_USM 1 = White car + lanes
+    # FcwOpt_USM 0 = No car + lanes
+    values["CF_Lkas_FcwOpt_USM"] = 2 if enabled else 1
+
+    # SysWarning 4 = keep hands on wheel
+    # SysWarning 5 = keep hands on wheel (red)
+    # SysWarning 6 = keep hands on wheel (red) + beep
+    # Note: the warning is hidden while the blinkers are on
+    values["CF_Lkas_SysWarning"] = 4 if sys_warning else 0
+
   if car_fingerprint in CHECKSUM["crc8"]:
     # CRC Checksum as seen on 2019 Hyundai Santa Fe
     dat = dat[:6] + dat[7:8]
