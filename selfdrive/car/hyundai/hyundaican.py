@@ -20,6 +20,7 @@ def create_lkas11(packer, frame, car_fingerprint, apply_steer, steer_req,
 
   if car_fingerprint in [CAR.PALISADE, CAR.SONATA]:
     values["CF_Lkas_LdwsActivemode"] = int(CC.hudControl.leftLaneVisible) + (int(CC.hudControl.rightLaneVisible) << 1)
+    values["CF_Lkas_LdwsOpt_USM"] = 2
 
   if car_fingerprint in CHECKSUM["crc8"]:
     # CRC Checksum as seen on 2019 Hyundai Santa Fe
