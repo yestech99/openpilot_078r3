@@ -225,25 +225,25 @@ def thermald_thread():
   env['LD_LIBRARY_PATH'] = mediaplayer
 
   getoff_alert = Params().get('OpkrEnableGetoffAlert') == b'1'
-  if Params().get_OpkrAutoShutdown() == "0":
+  if Params().get('OpkrAutoShutdown') == "0":
     OpkrAutoShutdown = 0
-  elif Params().get_OpkrAutoShutdown() == "1":
+  elif Params().get('OpkrAutoShutdown') == "1":
     OpkrAutoShutdown = 5
-  elif Params().get_OpkrAutoShutdown() == "2":
+  elif Params().get('OpkrAutoShutdown') == "2":
     OpkrAutoShutdown = 30
-  elif Params().get_OpkrAutoShutdown() == "3":
+  elif Params().get('OpkrAutoShutdown') == "3":
     OpkrAutoShutdown = 60
-  elif Params().get_OpkrAutoShutdown() == "4":
+  elif Params().get('OpkrAutoShutdown') == "4":
     OpkrAutoShutdown = 180
-  elif Params().get_OpkrAutoShutdown() == "5":
+  elif Params().get('OpkrAutoShutdown') == "5":
     OpkrAutoShutdown = 300
-  elif Params().get_OpkrAutoShutdown() == "6":
+  elif Params().get('OpkrAutoShutdown') == "6":
     OpkrAutoShutdown = 600
-  elif Params().get_OpkrAutoShutdown() == "7":
+  elif Params().get('OpkrAutoShutdown') == "7":
     OpkrAutoShutdown = 1800
-  elif Params().get_OpkrAutoShutdown() == "8":
+  elif Params().get('OpkrAutoShutdown') == "8":
     OpkrAutoShutdown = 3600
-  elif Params().get_OpkrAutoShutdown() == "9":
+  elif Params().get('OpkrAutoShutdown') == "9":
     OpkrAutoShutdown = 10800
   else:
     OpkrAutoShutdown = 18000
