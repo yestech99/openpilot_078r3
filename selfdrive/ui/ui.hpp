@@ -161,6 +161,12 @@ typedef struct UIScene {
       char text2[512];
   } alert;
 
+  struct  _PARAMS
+  {
+    int nOpkrAutoScreenOff;
+    int nOpkrUIBrightness;
+    int nOpkrUIVolumeBoost;
+  } params;
 } UIScene;
 
 typedef struct {

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 import os
+import os.path
+import json
+import copy
 import datetime
 import psutil
 from smbus2 import SMBus
@@ -15,8 +18,6 @@ import cereal.messaging as messaging
 from selfdrive.controls.lib.alertmanager import set_offroad_alert
 from selfdrive.loggerd.config import get_available_percent
 from selfdrive.pandad import get_expected_signature
-from selfdrive.kegman_conf import kegman_conf
-kegman = kegman_conf()
 from selfdrive.thermald.power_monitoring import PowerMonitoring, get_battery_capacity, get_battery_status, \
                                                 get_battery_current, get_battery_voltage, get_usb_present
 import re
@@ -36,11 +37,9 @@ DISCONNECT_TIMEOUT = 5.  # wait 5 seconds before going offroad after disconnect 
 LEON = False
 last_eon_fan_val = None
 
-LEON = False
-last_eon_fan_val = None
-
 mediaplayer = '/data/openpilot/selfdrive/openpilot/mediaplayer/'
 
+prebuiltfile = '/data/openpilot/prebuilt'
 
 def read_tz(x, clip=True):
   if not ANDROID:
@@ -159,13 +158,13 @@ def check_car_battery_voltage(should_start, health, charging_disabled, msg):
   #   - onroad isn't started
   print(health)
   
-  if charging_disabled and (health is None or health.health.voltage > (int(kegman.conf['carVoltageMinEonShutdown'])+500)) and msg.thermal.batteryPercent < int(kegman.conf['battChargeMin']):
+  if charging_disabled and (health is None or health.health.voltage > (11800+500)) and msg.thermal.batteryPercent < 70:
     charging_disabled = False
     os.system('echo "1" > /sys/class/power_supply/battery/charging_enabled')
-  elif not charging_disabled and (msg.thermal.batteryPercent > int(kegman.conf['battChargeMax']) or (health is not None and health.health.voltage < int(kegman.conf['carVoltageMinEonShutdown']) and not should_start)):
+  elif not charging_disabled and (msg.thermal.batteryPercent > 80 or (health is not None and health.health.voltage < 11800 and not should_start)):
     charging_disabled = True
     os.system('echo "0" > /sys/class/power_supply/battery/charging_enabled')
-  elif msg.thermal.batteryCurrent < 0 and msg.thermal.batteryPercent > int(kegman.conf['battChargeMax']):
+  elif msg.thermal.batteryCurrent < 0 and msg.thermal.batteryPercent > 80:
     charging_disabled = True
     os.system('echo "0" > /sys/class/power_supply/battery/charging_enabled')
 
@@ -174,7 +173,7 @@ def check_car_battery_voltage(should_start, health, charging_disabled, msg):
 
 def thermald_thread():
   # prevent LEECO from undervoltage
-  BATT_PERC_OFF = int(kegman.conf['battPercOff'])
+  BATT_PERC_OFF = 100
   
   health_timeout = int(1000 * 2.5 * DT_TRML)  # 2.5x the expected health frequency
 
@@ -215,6 +214,7 @@ def thermald_thread():
   pm = PowerMonitoring()
   no_panda_cnt = 0
 
+  IsOpenpilotViewEnabled = 0
   ts_last_ip = 0
   ip_addr = '255.255.255.255'
 
@@ -223,6 +223,31 @@ def thermald_thread():
 
   env = dict(os.environ)
   env['LD_LIBRARY_PATH'] = mediaplayer
+
+  getoff_alert = Params().get('OpkrEnableGetoffAlert') == b'1'
+  if Params().get_OpkrAutoShutdown() == "0":
+    OpkrAutoShutdown = 0
+  elif Params().get_OpkrAutoShutdown() == "1":
+    OpkrAutoShutdown = 5
+  elif Params().get_OpkrAutoShutdown() == "2":
+    OpkrAutoShutdown = 30
+  elif Params().get_OpkrAutoShutdown() == "3":
+    OpkrAutoShutdown = 60
+  elif Params().get_OpkrAutoShutdown() == "4":
+    OpkrAutoShutdown = 180
+  elif Params().get_OpkrAutoShutdown() == "5":
+    OpkrAutoShutdown = 300
+  elif Params().get_OpkrAutoShutdown() == "6":
+    OpkrAutoShutdown = 600
+  elif Params().get_OpkrAutoShutdown() == "7":
+    OpkrAutoShutdown = 1800
+  elif Params().get_OpkrAutoShutdown() == "8":
+    OpkrAutoShutdown = 3600
+  elif Params().get_OpkrAutoShutdown() == "9":
+    OpkrAutoShutdown = 10800
+  else:
+    OpkrAutoShutdown = 18000
+  
   while 1:
     ts = sec_since_boot()
     health = messaging.recv_sock(health_sock, wait=True)
@@ -283,6 +308,9 @@ def thermald_thread():
           health_prev.health.hwType != log.HealthData.HwType.unknown:
           params.panda_disconnect()
       health_prev = health
+    elif ignition == False or IsOpenpilotViewEnabled:
+      IsOpenpilotViewEnabled = int( params.get("IsOpenpilotViewEnabled") )      
+      ignition = IsOpenpilotViewEnabled
 
     # get_network_type is an expensive call. update every 10s
     if (count % int(10. / DT_TRML)) == 0:
@@ -472,13 +500,13 @@ def thermald_thread():
         off_ts = sec_since_boot()
         os.system('echo powersave > /sys/class/devfreq/soc:qcom,cpubw/governor')
 
-      if sound_trigger == 1 and msg.thermal.batteryStatus == "Discharging" and started_seen and (sec_since_boot() - off_ts) > 1:
+      if sound_trigger == 1 and msg.thermal.batteryStatus == "Discharging" and started_seen and (sec_since_boot() - off_ts) > 1 and getoff_alert:
         subprocess.Popen([mediaplayer + 'mediaplayer', '/data/openpilot/selfdrive/assets/sounds/eondetach.wav'], shell = False, stdin=None, stdout=None, stderr=None, env = env, close_fds=True)
         sound_trigger = 0
       # shutdown if the battery gets lower than 3%, it's discharging, we aren't running for
       # more than a minute but we were running
       if msg.thermal.batteryPercent <= BATT_PERC_OFF and msg.thermal.batteryStatus == "Discharging" and \
-         started_seen and (sec_since_boot() - off_ts) > 30:
+         started_seen and OpkrAutoShutdown and (sec_since_boot() - off_ts) > OpkrAutoShutdown:
         os.system('LD_LIBRARY_PATH="" svc power shutdown')
 
     charging_disabled = check_car_battery_voltage(should_start, health, charging_disabled, msg)
@@ -490,6 +518,13 @@ def thermald_thread():
 
     
     msg.thermal.chargingDisabled = charging_disabled
+    
+    prebuiltlet = Params().get('PutPrebuiltOn') == b'1'
+    if not os.path.isfile(prebuiltfile) and prebuiltlet:
+      os.system("cd /data/openpilot; touch prebuilt")
+    elif os.path.isfile(prebuiltfile) and not prebuiltlet:
+      os.system("cd /data/openpilot; rm -f prebuilt")
+
     # Offroad power monitoring
     pm.calculate(health)
     msg.thermal.offroadPowerUsage = pm.get_power_used()

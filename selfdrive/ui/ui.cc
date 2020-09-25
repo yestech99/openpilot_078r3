@@ -42,7 +42,7 @@ static void set_awake(UIState *s, bool awake) {
 #ifdef QCOM
   if (awake) {
     // 30 second timeout
-    s->awake_timeout = 30*UI_FREQ;
+    s->awake_timeout = (s->scene.params.nOpkrAutoScreenOff && s->started)? s->scene.params.nOpkrAutoScreenOff*60*UI_FREQ : 30*UI_FREQ;
   }
   if (s->awake != awake) {
     s->awake = awake;
@@ -107,13 +107,18 @@ static void handle_sidebar_touch(UIState *s, int touch_x, int touch_y) {
   }
 }
 
+static void handle_openpilot_view_touch() 
+{
+  write_db_value("IsDriverViewEnabled", "0", 1);
+}
+
 static void handle_vision_touch(UIState *s, int touch_x, int touch_y) {
   if (s->started && (touch_x >= s->scene.ui_viz_rx - bdr_s)
     && (s->active_app != cereal::UiLayoutState::App::SETTINGS)) {
     if (!s->scene.frontview) {
       s->scene.uilayout_sidebarcollapsed = !s->scene.uilayout_sidebarcollapsed;
     } else {
-      write_db_value("IsDriverViewEnabled", "0", 1);
+      handle_openpilot_view_touch();
     }
   }
 }
@@ -781,6 +786,11 @@ int main(int argc, char* argv[]) {
 
   int draws = 0;
 
+  if (s->scene.params.nOpkrAutoScreenOff) {
+    set_awake(s, true);
+  }
+
+  int nParamRead = 0;
   while (!do_exit) {
     bool should_swap = false;
     if (!s->started) {
@@ -791,12 +801,26 @@ int main(int argc, char* argv[]) {
     pthread_mutex_lock(&s->lock);
     double u1 = millis_since_boot();
 
+    // parameter Read.
+    nParamRead++;
+    switch( nParamRead )
+    {
+      case 1: ui_get_params( "OpkrAutoScreenOff", &s->scene.params.nOpkrAutoScreenOff ); break;
+      case 2: ui_get_params( "OpkrUIBrightness", &s->scene.params.nOpkrUIBrightness ); break;
+      case 3: ui_get_params( "OpkrUIVolumeBoost", &s->scene.params.nOpkrUIVolumeBoost ); break;
+      default: nParamRead = 0; break;
+    }
+
     // light sensor is only exposed on EONs
+    if (s->scene.params.nOpkrUIBrightness == 0) {
     float clipped_brightness = (s->light_sensor*brightness_m) + brightness_b;
     if (clipped_brightness > 512) clipped_brightness = 512;
     smooth_brightness = clipped_brightness * 0.01 + smooth_brightness * 0.99;
     if (smooth_brightness > 255) smooth_brightness = 255;
     ui_set_brightness(s, (int)smooth_brightness);
+    } else {
+      ui_set_brightness(s, (int)(255*s->scene.params.nOpkrUIBrightness*0.01));
+    }
 
     // resize vision for collapsing sidebar
     const bool hasSidebar = !s->scene.uilayout_sidebarcollapsed;
@@ -808,9 +832,21 @@ int main(int argc, char* argv[]) {
     int touch_x = -1, touch_y = -1;
     int touched = touch_poll(&touch, &touch_x, &touch_y, 0);
     if (touched == 1) {
-      set_awake(s, true);
-      handle_sidebar_touch(s, touch_x, touch_y);
-      handle_vision_touch(s, touch_x, touch_y);
+      if (s->scene.params.nOpkrAutoScreenOff && s->awake_timeout == 0) {
+        set_awake(s, true);
+      } else {
+        set_awake(s, true);
+
+        if( touch_x  < 1660 || touch_y < 885 )
+        { 
+          handle_sidebar_touch(s, touch_x, touch_y);
+          handle_vision_touch(s, touch_x, touch_y);
+        }
+        else
+        {
+          handle_openpilot_view_touch();
+        }        
+      }
     }
 
     if (!s->started) {
@@ -821,7 +857,11 @@ int main(int argc, char* argv[]) {
         s->controls_timeout = 5 * UI_FREQ;
       }
     } else {
-      set_awake(s, true);
+      if (s->scene.params.nOpkrAutoScreenOff) {
+        // do nothing
+      } else {
+        set_awake(s, true);
+      }
       // Car started, fetch a new rgb image from ipc
       if (s->vision_connected){
         ui_update(s);
@@ -860,16 +900,31 @@ int main(int argc, char* argv[]) {
       should_swap = true;
     }
 
-    s->sound.setVolume(fmin(MAX_VOLUME, MIN_VOLUME + s->scene.controls_state.getVEgo() / 5)); // up one notch every 5 m/s
+    float min = MIN_VOLUME + s->scene.controls_state.getVEgo() / 5;
+    if (s->scene.params.nOpkrUIVolumeBoost > 0 || s->scene.params.nOpkrUIVolumeBoost < 0) {
+      min = min * (1 + s->scene.params.nOpkrUIVolumeBoost * 0.01);
+    }
+    s->sound.setVolume(fmin(MAX_VOLUME, min)); // up one notch every 5 m/s
 
     if (s->controls_timeout > 0) {
       s->controls_timeout--;
     } else if (s->started && !s->scene.frontview) {
       if (!s->controls_seen) {
-        // car is started, but controlsState hasn't been seen at all
-        s->scene.alert_text1 = "openpilot Unavailable";
-        s->scene.alert_text2 = "Waiting for controls to start";
-        s->scene.alert_size = cereal::ControlsState::AlertSize::MID;
+        int  IsOpenpilotViewEnabled = 0;
+        ui_get_params( "IsDriverViewEnabled", &IsOpenpilotViewEnabled );
+        if( !IsOpenpilotViewEnabled )
+        {
+          // car is started, but controlsState hasn't been seen at all
+          s->scene.alert_text1 = "openpilot Unavailable";
+          s->scene.alert_text2 = "Waiting for controls to start";
+          s->scene.alert_size = cereal::ControlsState::AlertSize::MID;
+        }
+        else
+        {
+          s->controls_timeout = 5 * UI_FREQ;
+          s->scene.alert_size = cereal::ControlsState::AlertSize::NONE;
+        }
+        
       } else {
         // car is started, but controls is lagging or died
         LOGE("Controls unresponsive");

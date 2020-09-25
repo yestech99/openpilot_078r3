@@ -4,6 +4,7 @@ from selfdrive.config import Conversions as CV
 from selfdrive.car.hyundai.values import Ecu, ECU_FINGERPRINT, CAR, FINGERPRINTS, Buttons
 from selfdrive.car import STD_CARGO_KG, scale_rot_inertia, scale_tire_stiffness, is_ecu_disconnected, gen_empty_fingerprint
 from selfdrive.car.interfaces import CarInterfaceBase, MAX_CTRL_SPEED
+from common.params import Params
 
 EventName = car.CarEvent.EventName
 ButtonType = car.CarState.ButtonEvent.Type
@@ -23,79 +24,613 @@ class CarInterface(CarInterfaceBase):
 
     ret.carName = "hyundai"
     ret.safetyModel = car.CarParams.SafetyModel.hyundai
-    ret.radarOffCan = False
+    
+    params = Params()
+    if int(params.get('LateralControlPriority')) == 0:
+      ret.radarOffCan = False
+    else:
+      ret.radarOffCan = True
+      
+    PidKp = int(params.get('PidKp')) * 0.01
+    PidKi = int(params.get('PidKi')) * 0.001
+    PidKf = int(params.get('PidKf')) * 0.00001
+    OuterLoopGain = int(params.get('OuterLoopGain')) * 0.1
+    InnerLoopGain = int(params.get('InnerLoopGain')) * 0.1
+    TimeConstant = int(params.get('TimeConstant')) * 0.1
+    ActuatorEffectiveness = int(params.get('ActuatorEffectiveness')) * 0.1
+    Scale = int(params.get('Scale')) * 1.0
+    LqrKi = int(params.get('LqrKi')) * 0.001
+    DcGain = int(params.get('DcGain')) * 0.0001
 
     # Most Hyundai car ports are community features for now
     ret.communityFeature = False
 
-    tire_stiffness_factor = 1.
-    ret.steerActuatorDelay = 0.3
-    ret.steerRateCost = 0.4
-    ret.steerLimitTimer = 0.4
+    tire_stiffness_factor = int(params.get('TireStiffnessFactorAdj')) * 0.01
+    ret.steerActuatorDelay = int(params.get('SteerActuatorDelayAdj')) * 0.01
+    ret.steerRateCost = int(params.get('SteerRateCostAdj')) * 0.01
+    ret.steerLimitTimer = int(params.get('SteerLimitTimerAdj')) * 0.01
+    ret.steerRatio = int(params.get('SteerRatioAdj')) * 0.1
 
-    if candidate == CAR.KIA_OPTIMA_H:
-      ret.wheelbase = 2.80
-      ret.mass = 1595. + STD_CARGO_KG
-      ret.steerRatio = 13.5
-      
-      ret.lateralTuning.pid.kf = 0.00005
-      ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
-      ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.20], [0.04]]
-      
-      #ret.lateralTuning.init('lqr')
-      #ret.lateralTuning.lqr.scale = 1750.0
-      #ret.lateralTuning.lqr.ki = 0.02
-      #ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
-      #ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
-      #ret.lateralTuning.lqr.c = [1., 0.]
-      #ret.lateralTuning.lqr.k = [-100., 450.]
-      #ret.lateralTuning.lqr.l = [0.22, 0.318]
-      #ret.lateralTuning.lqr.dcGain = 0.0025
+    if int(params.get('LateralControlMethod')) == 0:
+      if candidate == CAR.SANTAFE:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1830. + STD_CARGO_KG
+        ret.wheelbase = 2.765
+        # Values from optimizer
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.SORENTO:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1950. + STD_CARGO_KG
+        ret.wheelbase = 2.78
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.GENESIS:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 2060. + STD_CARGO_KG
+        ret.wheelbase = 3.01
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate in [CAR.K5, CAR.SONATA]:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1470. + STD_CARGO_KG
+        ret.wheelbase = 2.80
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.SONATA_TURBO:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1565. + STD_CARGO_KG
+        ret.wheelbase = 2.80
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate in [CAR.K5_HEV, CAR.SONATA_HEV]:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1595. + STD_CARGO_KG
+        ret.wheelbase = 2.80
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate in [CAR.GRANDEUR, CAR.K7]:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1570. + STD_CARGO_KG
+        ret.wheelbase = 2.885
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate in [CAR.GRANDEUR_HEV, CAR.K7_HEV]:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1675. + STD_CARGO_KG
+        ret.wheelbase = 2.885
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.STINGER:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1825. + STD_CARGO_KG
+        ret.wheelbase = 2.78
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.KONA:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1330. + STD_CARGO_KG
+        ret.wheelbase = 2.6
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.KONA_HEV:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1330. + STD_CARGO_KG
+        ret.wheelbase = 2.6
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.KONA_EV:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1330. + STD_CARGO_KG
+        ret.wheelbase = 2.6
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.NIRO_HEV:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1425. + STD_CARGO_KG
+        ret.wheelbase = 2.7
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.NIRO_EV:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1425. + STD_CARGO_KG
+        ret.wheelbase = 2.7
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.IONIQ_HEV:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1275. + STD_CARGO_KG
+        ret.wheelbase = 2.7
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.IONIQ_EV:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1490. + STD_CARGO_KG   #weight per hyundai site https://www.hyundaiusa.com/ioniq-electric/specifications.aspx
+        ret.wheelbase = 2.7
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.NEXO:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1885. + STD_CARGO_KG
+        ret.wheelbase = 2.79
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.MOHAVE:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 2250. + STD_CARGO_KG
+        ret.wheelbase = 2.895
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.I30:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1380. + STD_CARGO_KG
+        ret.wheelbase = 2.65
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.AVANTE:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1275. + STD_CARGO_KG
+        ret.wheelbase = 2.7
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.SELTOS:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1470. + STD_CARGO_KG
+        ret.wheelbase = 2.63
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+      elif candidate == CAR.PALISADE:
+        ret.lateralTuning.pid.kf = PidKf
+        ret.mass = 1955. + STD_CARGO_KG
+        ret.wheelbase = 2.90
+        ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
+        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[PidKp], [PidKi]]
+    elif int(params.get('LateralControlMethod')) == 1:
+      if candidate == CAR.SANTAFE:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1830. + STD_CARGO_KG
+        ret.wheelbase = 2.765
+      elif candidate == CAR.SORENTO:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1950. + STD_CARGO_KG
+        ret.wheelbase = 2.78
+      elif candidate == CAR.GENESIS:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 2060. + STD_CARGO_KG
+        ret.wheelbase = 3.01
+      elif candidate in [CAR.K5, CAR.SONATA]:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1470. + STD_CARGO_KG
+        ret.wheelbase = 2.80
+      elif candidate == CAR.SONATA_TURBO:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1565. + STD_CARGO_KG
+        ret.wheelbase = 2.80
+      elif candidate in [CAR.K5_HEV, CAR.SONATA_HEV]:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1595. + STD_CARGO_KG
+        ret.wheelbase = 2.80
+      elif candidate in [CAR.GRANDEUR, CAR.K7]:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1570. + STD_CARGO_KG
+        ret.wheelbase = 2.885
+      elif candidate in [CAR.GRANDEUR_HEV, CAR.K7_HEV]:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1675. + STD_CARGO_KG
+        ret.wheelbase = 2.885
+      elif candidate == CAR.STINGER:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1825. + STD_CARGO_KG
+        ret.wheelbase = 2.78
+      elif candidate == CAR.KONA:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1330. + STD_CARGO_KG
+        ret.wheelbase = 2.6
+      elif candidate == CAR.KONA_HEV:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1330. + STD_CARGO_KG
+        ret.wheelbase = 2.6
+      elif candidate == CAR.KONA_EV:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1330. + STD_CARGO_KG
+        ret.wheelbase = 2.6
+      elif candidate == CAR.NIRO_HEV:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1425. + STD_CARGO_KG
+        ret.wheelbase = 2.7
+      elif candidate == CAR.NIRO_EV:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1425. + STD_CARGO_KG
+        ret.wheelbase = 2.7
+      elif candidate == CAR.IONIQ_HEV:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1275. + STD_CARGO_KG
+        ret.wheelbase = 2.7
+      elif candidate == CAR.IONIQ_EV:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1490. + STD_CARGO_KG   #weight per hyundai site https://www.hyundaiusa.com/ioniq-electric/specifications.aspx
+        ret.wheelbase = 2.7
+      elif candidate == CAR.NEXO:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1885. + STD_CARGO_KG
+        ret.wheelbase = 2.79
+      elif candidate == CAR.MOHAVE:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 2250. + STD_CARGO_KG
+        ret.wheelbase = 2.895
+      elif candidate == CAR.I30:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1380. + STD_CARGO_KG
+        ret.wheelbase = 2.65
+      elif candidate == CAR.AVANTE:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1275. + STD_CARGO_KG
+        ret.wheelbase = 2.7
+      elif candidate == CAR.SELTOS:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1470. + STD_CARGO_KG
+        ret.wheelbase = 2.63
+      elif candidate == CAR.PALISADE:
+        ret.lateralTuning.init('indi')
+        ret.lateralTuning.indi.innerLoopGain = InnerLoopGain
+        ret.lateralTuning.indi.outerLoopGain = OuterLoopGain
+        ret.lateralTuning.indi.timeConstant = TimeConstant
+        ret.lateralTuning.indi.actuatorEffectiveness = ActuatorEffectiveness 
+        ret.mass = 1955. + STD_CARGO_KG
+        ret.wheelbase = 2.90
+    elif int(params.get('LateralControlMethod')) == 2:
+      if candidate == CAR.SANTAFE:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1830. + STD_CARGO_KG
+        ret.wheelbase = 2.765
+      elif candidate == CAR.SORENTO:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1950. + STD_CARGO_KG
+        ret.wheelbase = 2.78
+      elif candidate == CAR.GENESIS:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 2060. + STD_CARGO_KG
+        ret.wheelbase = 3.01
+      elif candidate in [CAR.K5, CAR.SONATA]:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1470. + STD_CARGO_KG
+        ret.wheelbase = 2.80
+      elif candidate == CAR.SONATA_TURBO:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1565. + STD_CARGO_KG
+        ret.wheelbase = 2.80
+      elif candidate in [CAR.K5_HEV, CAR.SONATA_HEV]:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1595. + STD_CARGO_KG
+        ret.wheelbase = 2.80
+      elif candidate in [CAR.GRANDEUR, CAR.K7]:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1570. + STD_CARGO_KG
+        ret.wheelbase = 2.885
+      elif candidate in [CAR.GRANDEUR_HEV, CAR.K7_HEV]:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1675. + STD_CARGO_KG
+        ret.wheelbase = 2.885
+      elif candidate == CAR.STINGER:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1825. + STD_CARGO_KG
+        ret.wheelbase = 2.78
+      elif candidate == CAR.KONA:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1330. + STD_CARGO_KG
+        ret.wheelbase = 2.6
+      elif candidate == CAR.KONA_HEV:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1330. + STD_CARGO_KG
+        ret.wheelbase = 2.6
+      elif candidate == CAR.KONA_EV:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1330. + STD_CARGO_KG
+        ret.wheelbase = 2.6
+      elif candidate == CAR.NIRO_HEV:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1425. + STD_CARGO_KG
+        ret.wheelbase = 2.7
+      elif candidate == CAR.NIRO_EV:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1425. + STD_CARGO_KG
+        ret.wheelbase = 2.7
+      elif candidate == CAR.IONIQ_HEV:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1275. + STD_CARGO_KG
+        ret.wheelbase = 2.7
+      elif candidate == CAR.IONIQ_EV:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1490. + STD_CARGO_KG   #weight per hyundai site https://www.hyundaiusa.com/ioniq-electric/specifications.aspx
+        ret.wheelbase = 2.7
+      elif candidate == CAR.NEXO:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1885. + STD_CARGO_KG
+        ret.wheelbase = 2.79
+      elif candidate == CAR.MOHAVE:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 2250. + STD_CARGO_KG
+        ret.wheelbase = 2.895
+      elif candidate == CAR.I30:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1380. + STD_CARGO_KG
+        ret.wheelbase = 2.65
+      elif candidate == CAR.AVANTE:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1275. + STD_CARGO_KG
+        ret.wheelbase = 2.7
+      elif candidate == CAR.SELTOS:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1470. + STD_CARGO_KG
+        ret.wheelbase = 2.63
+      elif candidate == CAR.PALISADE:
+        ret.lateralTuning.init('lqr')
+        ret.lateralTuning.lqr.scale = Scale
+        ret.lateralTuning.lqr.ki = LqrKi
+        ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
+        ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
+        ret.lateralTuning.lqr.c = [1., 0.]
+        ret.lateralTuning.lqr.k = [-100., 450.]
+        ret.lateralTuning.lqr.l = [0.22, 0.318]
+        ret.lateralTuning.lqr.dcGain = DcGain
+        ret.mass = 1955. + STD_CARGO_KG
+        ret.wheelbase = 2.90
 
-      #ret.lateralTuning.init('indi')
-      #ret.lateralTuning.indi.innerLoopGain = 3.0
-      #ret.lateralTuning.indi.outerLoopGain = 2.0
-      #ret.lateralTuning.indi.timeConstant = 1.0
-      #ret.lateralTuning.indi.actuatorEffectiveness = 1.0
-
-    elif candidate == CAR.ELANTRA:
-      #ret.lateralTuning.pid.kf = 0.00005
-      ret.mass = 1275. + STD_CARGO_KG
-      ret.wheelbase = 2.7
-      ret.steerRatio = 13.5
-      #ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
-      #ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.25], [0.05]]
-      ret.lateralTuning.init('lqr')
-      ret.lateralTuning.lqr.scale = 1750.0
-      ret.lateralTuning.lqr.ki = 0.02
-      ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
-      ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
-      ret.lateralTuning.lqr.c = [1., 0.]
-      ret.lateralTuning.lqr.k = [-100., 450.]
-      ret.lateralTuning.lqr.l = [0.22, 0.318]
-      ret.lateralTuning.lqr.dcGain = 0.0025
-
-    elif candidate == CAR.SONATA:
-      #ret.lateralTuning.init('lqr')
-      #ret.lateralTuning.lqr.scale = 1750.0
-      #ret.lateralTuning.lqr.ki = 0.02
-      #ret.lateralTuning.lqr.a = [0., 1., -0.22619643, 1.21822268]
-      #ret.lateralTuning.lqr.b = [-1.92006585e-04, 3.95603032e-05]
-      #ret.lateralTuning.lqr.c = [1., 0.]
-      #ret.lateralTuning.lqr.k = [-100., 450.]
-      #ret.lateralTuning.lqr.l = [0.22, 0.318]
-      #ret.lateralTuning.lqr.dcGain = 0.0025
-      #ret.mass = 1955. + STD_CARGO_KG
-      #ret.wheelbase = 2.90
-      ret.wheelbase = 2.70
-      ret.mass = 1275. + STD_CARGO_KG
-      ret.steerRatio = 13.5  
-      ret.lateralTuning.pid.kf = 0.00005
-      ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
-      ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.20], [0.04]]
 
     # these cars require a special panda safety mode due to missing counters and checksums in the messages
-    if candidate == CAR.HYUNDAI_GENESIS:
+    if candidate in [CAR.GENESIS, CAR.IONIQ_EV, CAR.IONIQ_HEV, CAR.KONA_EV]:
       ret.safetyModel = car.CarParams.SafetyModel.hyundaiLegacy
 
     ret.centerToFront = ret.wheelbase * 0.4

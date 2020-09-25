@@ -14,6 +14,7 @@ from selfdrive.controls.lib.long_mpc import LongitudinalMpc
 
 from selfdrive.car.hyundai.values import Buttons, SteerLimitParams
 from common.numpy_fast import clip, interp
+from common.params import Params
 
 from selfdrive.config import RADAR_TO_CAMERA
 
@@ -102,7 +103,8 @@ class SpdController():
         self.btn_type = Buttons.NONE
         self.active_time = 0
 
-        self.cruise_set_mode = 0
+        self.params = Params()
+        self.cruise_set_mode = int(self.params.get('CruiseStatemodeSelInit'))
 
 
     def reset(self):

@@ -8,8 +8,11 @@ from selfdrive.config import Conversions as CV
 
 # speed controller
 from selfdrive.car.hyundai.spdcontroller  import SpdController
-from selfdrive.car.hyundai.spdctrl  import Spdctrl
+from selfdrive.car.hyundai.spdctrlSlow  import SpdctrlSlow
+from selfdrive.car.hyundai.spdctrlNormal  import SpdctrlNormal
+from selfdrive.car.hyundai.spdctrlFast  import SpdctrlFast
 
+from common.params import Params
 import common.log as trace1
 import common.CTime1000 as tm
 
@@ -30,7 +33,6 @@ class CarController():
     self.emergency_manual_timer = 0
     self.driver_steering_torque_above_timer = 0
     self.mode_change_timer = 0
-    self.mode_change_switch = 1
 
     self.steer_mode = ""
     self.mdps_status = ""
@@ -45,7 +47,6 @@ class CarController():
     self.vRel = 0
 
     self.timer1 = tm.CTime1000("time")
-    self.SC = Spdctrl()
     self.model_speed = 0
     self.model_sum = 0
     
@@ -57,6 +58,18 @@ class CarController():
 
     self.res_cnt = 7
     self.res_delay = 0
+
+    self.params = Params()
+    self.mode_change_switch = int(self.params.get('CruiseStatemodeSelInit'))
+    self.param_OpkrAccelProfile = int(self.params.get('OpkrAccelProfile'))
+    self.param_OpkrAutoResume = int(self.params.get('OpkrAutoResume'))
+    
+    if self.param_OpkrAccelProfile == 1:
+      self.SC = SpdctrlSlow()
+    elif self.param_OpkrAccelProfile == 2:
+      self.SC = SpdctrlNormal()
+    else:
+      self.SC = SpdctrlFast()
 
   def process_hud_alert(self, enabled, CC ):
     visual_alert = CC.hudControl.visualAlert
@@ -184,7 +197,7 @@ class CarController():
     if self.mode_change_timer > 0:
       self.mode_change_timer -= 1
 
-    run_speed_ctrl = CS.acc_active and self.SC != None and (CS.out.cruiseState.modeSel == 1 or CS.out.cruiseState.modeSel == 2 or CS.out.cruiseState.modeSel == 3)
+    run_speed_ctrl = self.param_OpkrAccelProfile and CS.acc_active and self.SC != None and (CS.out.cruiseState.modeSel == 1 or CS.out.cruiseState.modeSel == 2 or CS.out.cruiseState.modeSel == 3)
     if not run_speed_ctrl:
       if CS.out.cruiseState.modeSel == 0:
         self.steer_mode = "오파모드"
@@ -220,7 +233,7 @@ class CarController():
       can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.CANCEL, clu11_speed))
     elif CS.out.cruiseState.standstill:
       # run only first time when the car stopped
-      if self.last_lead_distance == 0:
+      if self.last_lead_distance == 0 or not self.param_OpkrAutoResume::
         # get the lead distance from the Radar
         self.last_lead_distance = CS.lead_distance
         self.resume_cnt = 0
@@ -259,8 +272,8 @@ class CarController():
     #    self.res_delay = 0
 
     # 20 Hz LFA MFA message
-    if frame % 5 == 0 and self.car_fingerprint in [CAR.IONIQ]:
-      can_sends.append(create_lfa_mfa(self.packer, frame, enabled))
+    #if frame % 5 == 0 and self.car_fingerprint in [CAR.IONIQ]:
+    #  can_sends.append(create_lfa_mfa(self.packer, frame, enabled))
 
     self.lkas11_cnt += 1
     return can_sends
