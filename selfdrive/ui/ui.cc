@@ -921,7 +921,7 @@ int main(int argc, char* argv[]) {
         }
         else
         {
-          s->controls_timeout = 10 * UI_FREQ;
+          s->controls_timeout = 5 * UI_FREQ;
           s->scene.alert_size = cereal::ControlsState::AlertSize::NONE;
         }
         
