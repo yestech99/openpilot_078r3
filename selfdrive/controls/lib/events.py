@@ -591,7 +591,7 @@ EVENTS = {
       "핸들을 잡아주세요",
       "카메라 포커스 조정중: 카메라 포커스 부정확",
       AlertStatus.userPrompt, AlertSize.mid,
-      Priority.LOW, VisualAlert.steerRequired, AudibleAlert.chimeWarning1, .4, 2., 3.),
+      Priority.LOW, VisualAlert.none, AudibleAlert.none, .4, 2., 3.),
   },
 
   EventName.outOfSpace: {
