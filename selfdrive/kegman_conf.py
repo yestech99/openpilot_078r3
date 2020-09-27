@@ -44,15 +44,15 @@ class kegman_conf():
         self.config = json.load(f)
 
       if "battPercOff" not in self.config:
-        self.config.update({"battPercOff":"25"})
+        self.config.update({"battPercOff":"100"})
         self.config.update({"carVoltageMinEonShutdown":"11800"})
         self.config.update({"brakeStoppingTarget":"0.25"})
         self.element_updated = True
 
       if "tuneGernby" not in self.config:
         self.config.update({"tuneGernby":"1"})
-        self.config.update({"Kp":"-1"})
-        self.config.update({"Ki":"-1"})
+        self.config.update({"Kp":"0.20"})
+        self.config.update({"Ki":"0.04"})
         self.element_updated = True
 
       if "liveParams" not in self.config:
@@ -60,8 +60,8 @@ class kegman_conf():
         self.element_updated = True
 	
       if "steerRatio" not in self.config:
-        self.config.update({"steerRatio":"-1"})
-        self.config.update({"steerRateCost":"-1"})
+        self.config.update({"steerRatio":"13.5"})
+        self.config.update({"steerRateCost":"0.4"})
         self.element_updated = True
 	
       if "leadDistance" not in self.config:
@@ -69,7 +69,7 @@ class kegman_conf():
         self.element_updated = True
 	
       if "deadzone" not in self.config:
-        self.config.update({"deadzone":"0.0"})
+        self.config.update({"deadzone":"0.1"})
         self.element_updated = True
 	
       if "1barBP0" not in self.config:
@@ -99,7 +99,7 @@ class kegman_conf():
         self.element_updated = True
 	
       if "Kf" not in self.config:
-        self.config.update({"Kf":"-1"})
+        self.config.update({"Kf":"0.00005"})
         self.element_updated = True
 	
       if "sR_boost" not in self.config:
@@ -110,12 +110,12 @@ class kegman_conf():
         self.element_updated = True
 
       if "ALCnudgeLess" not in self.config:
-        self.config.update({"ALCnudgeLess":"0"})
-        self.config.update({"ALCminSpeed":"20.1168"})
+        self.config.update({"ALCnudgeLess":"1"})
+        self.config.update({"ALCminSpeed":"16.666667"})
         self.element_updated = True
 
       if "ALCtimer" not in self.config:
-        self.config.update({"ALCtimer":"2.0"})
+        self.config.update({"ALCtimer":"0.5"})
         self.element_updated = True
 
       if "CruiseDelta" not in self.config:
@@ -135,16 +135,16 @@ class kegman_conf():
         self.write_config(self.config)
 
     else:
-      self.config = {"cameraOffset":"0.06", "lastTrMode":"1", "battChargeMin":"60", "battChargeMax":"70", \
-                     "wheelTouchSeconds":"180", "battPercOff":"25", "carVoltageMinEonShutdown":"11800", \
+      self.config = {"cameraOffset":"0.06", "lastTrMode":"1", "battChargeMin":"70", "battChargeMax":"80", \
+                     "wheelTouchSeconds":"180", "battPercOff":"100", "carVoltageMinEonShutdown":"11800", \
                      "brakeStoppingTarget":"0.25", "tuneGernby":"1", \
-                     "Kp":"-1", "Ki":"-1", "liveParams":"1", "leadDistance":"5", "deadzone":"0.0", \
+                     "Kp":"0.20", "Ki":"0.04", "liveParams":"1", "leadDistance":"5", "deadzone":"0.1", \
                      "1barBP0":"-0.1", "1barBP1":"2.25", "2barBP0":"-0.1", "2barBP1":"2.5", "3barBP0":"0.0", \
                      "3barBP1":"3.0", "1barMax":"2.1", "2barMax":"2.1", "3barMax":"2.1", \
                      "1barHwy":"0.4", "2barHwy":"0.3", "3barHwy":"0.1", \
-                     "steerRatio":"-1", "steerRateCost":"-1", "slowOnCurves":"0", "Kf":"-1", \
+                     "steerRatio":"13.5", "steerRateCost":"0.4", "slowOnCurves":"0", "Kf":"0.00005", \
                      "sR_boost":"0", "sR_BP0":"0", "sR_BP1":"0", "sR_time":"1", \
-                     "ALCnudgeLess":"0", "ALCminSpeed":"20.1168", "ALCtimer":"2.0", "CruiseDelta":"8", \
+                     "ALCnudgeLess":"1", "ALCminSpeed":"16.666667", "ALCtimer":"0.5", "CruiseDelta":"8", \
                      "CruiseEnableMin":"40", "epsModded": "0"}
 
 
