@@ -132,7 +132,7 @@ class CarController():
       self.lanechange_manual_timer = 10
     if CS.out.leftBlinker and CS.out.rightBlinker:
       self.emergency_manual_timer = 10
-    if abs(CS.out.steeringTorque) > 200:
+    if abs(CS.out.steeringTorque) > 360:
       self.driver_steering_torque_above_timer = 25
     if self.lanechange_manual_timer or self.driver_steering_torque_above_timer:
       lkas_active = 0
