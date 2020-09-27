@@ -220,33 +220,35 @@ def thermald_thread():
 
   # sound trigger
   sound_trigger = 1
+  opkrAutoShutdown = 0
 
   env = dict(os.environ)
   env['LD_LIBRARY_PATH'] = mediaplayer
 
   getoff_alert = Params().get('OpkrEnableGetoffAlert') == b'1'
-  if Params().get('OpkrAutoShutdown') == "0":
-    OpkrAutoShutdown = 0
-  elif Params().get('OpkrAutoShutdown') == "1":
-    OpkrAutoShutdown = 5
-  elif Params().get('OpkrAutoShutdown') == "2":
-    OpkrAutoShutdown = 30
-  elif Params().get('OpkrAutoShutdown') == "3":
-    OpkrAutoShutdown = 60
-  elif Params().get('OpkrAutoShutdown') == "4":
-    OpkrAutoShutdown = 180
-  elif Params().get('OpkrAutoShutdown') == "5":
-    OpkrAutoShutdown = 300
-  elif Params().get('OpkrAutoShutdown') == "6":
-    OpkrAutoShutdown = 600
-  elif Params().get('OpkrAutoShutdown') == "7":
-    OpkrAutoShutdown = 1800
-  elif Params().get('OpkrAutoShutdown') == "8":
-    OpkrAutoShutdown = 3600
-  elif Params().get('OpkrAutoShutdown') == "9":
-    OpkrAutoShutdown = 10800
+  params = Params()
+  if int(params.get('OpkrAutoShutdown')) == 0:
+    opkrAutoShutdown = 0
+  elif int(params.get('OpkrAutoShutdown')) == 1:
+    opkrAutoShutdown = 5
+  elif int(params.get('OpkrAutoShutdown')) == 2:
+    opkrAutoShutdown = 30
+  elif int(params.get('OpkrAutoShutdown')) == 3:
+    opkrAutoShutdown = 60
+  elif int(params.get('OpkrAutoShutdown')) == 4:
+    opkrAutoShutdown = 180
+  elif int(params.get('OpkrAutoShutdown')) == 5:
+    opkrAutoShutdown = 300
+  elif int(params.get('OpkrAutoShutdown')) == 6:
+    opkrAutoShutdown = 600
+  elif int(params.get('OpkrAutoShutdown')) == 7:
+    opkrAutoShutdown = 1800
+  elif int(params.get('OpkrAutoShutdown')) == 8:
+    opkrAutoShutdown = 3600
+  elif int(params.get('OpkrAutoShutdown')) == 9:
+    opkrAutoShutdown = 10800
   else:
-    OpkrAutoShutdown = 18000
+    opkrAutoShutdown = 18000
   
   while 1:
     ts = sec_since_boot()
@@ -506,7 +508,7 @@ def thermald_thread():
       # shutdown if the battery gets lower than 3%, it's discharging, we aren't running for
       # more than a minute but we were running
       if msg.thermal.batteryPercent <= BATT_PERC_OFF and msg.thermal.batteryStatus == "Discharging" and \
-         started_seen and OpkrAutoShutdown and (sec_since_boot() - off_ts) > OpkrAutoShutdown:
+         started_seen and opkrAutoShutdown and (sec_since_boot() - off_ts) > opkrAutoShutdown:
         os.system('LD_LIBRARY_PATH="" svc power shutdown')
 
     charging_disabled = check_car_battery_voltage(should_start, health, charging_disabled, msg)
