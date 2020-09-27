@@ -15,6 +15,7 @@ EventName = car.CarEvent.EventName
 #  We recommend that you do not change these numbers from the defaults.
 # ******************************************************************************************
 
+
 params = Params()
 if int(params.get('OpkrEnableLogger')) == 0:
   _AWARENESS_TIME = 30000.
