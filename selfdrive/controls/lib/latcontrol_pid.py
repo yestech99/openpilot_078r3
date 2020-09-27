@@ -9,14 +9,14 @@ class LatControlPID():
   def __init__(self, CP):
     self.pid = PIController((CP.lateralTuning.pid.kpBP, CP.lateralTuning.pid.kpV),
                             (CP.lateralTuning.pid.kiBP, CP.lateralTuning.pid.kiV),
-                            k_f=CP.lateralTuning.pid.kf, pos_limit=1.0, sat_limit=CP.steerLimitTimer)
+                            k_f=CP.lateralTuning.pid.kf, pos_limit=1.0, neg_limit=-1.0,
+                            sat_limit=CP.steerLimitTimer)
     self.angle_steers_des = 0.
 
   def reset(self):
-    self.pid.reset()
+    self.pid.reset()   
 
   def update(self, active, CS, CP, path_plan):
-
     pid_log = log.ControlsState.LateralPIDState.new_message()
     pid_log.steerAngle = float(CS.steeringAngle)
     pid_log.steerRate = float(CS.steeringRate)
@@ -38,7 +38,7 @@ class LatControlPID():
         steer_feedforward *= CS.vEgo**2  # proportional to realigning tire momentum (~ lateral accel)
       params = Params()
       deadzone = int(params.get('IgnoreZone')) * 0.1
-
+        
       check_saturation = (CS.vEgo > 10) and not CS.steeringRateLimited and not CS.steeringPressed
       output_steer = self.pid.update(self.angle_steers_des, CS.steeringAngle, check_saturation=check_saturation, override=CS.steeringPressed,
                                      feedforward=steer_feedforward, speed=CS.vEgo, deadzone=deadzone)
