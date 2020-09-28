@@ -18,13 +18,13 @@ EventName = car.CarEvent.EventName
 
 params = Params()
 if int(params.get('OpkrEnableLogger')) == 0:
-  _AWARENESS_TIME = 30000.
+  _AWARENESS_TIME = 18000.
 else:
   _AWARENESS_TIME = 70.  # one minute limit without user touching steering wheels make the car enter a terminal status
 _AWARENESS_PRE_TIME_TILL_TERMINAL = 15.  # a first alert is issued 25s before expiration
 _AWARENESS_PROMPT_TIME_TILL_TERMINAL = 6.  # a second alert is issued 15s before start decelerating the car
 if int(params.get('OpkrEnableDriverMonitoring')) == 0 and int(params.get('OpkrEnableLogger')) == 0:
-  _DISTRACTED_TIME = 30000.
+  _DISTRACTED_TIME = 18000.
 else:
   _DISTRACTED_TIME = 11.
 _DISTRACTED_PRE_TIME_TILL_TERMINAL = 8.

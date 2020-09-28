@@ -644,7 +644,8 @@ EVENTS = {
   },
 
   EventName.wrongGear: {
-    ET.SOFT_DISABLE: SoftDisableAlert("기어가 드라이브모드가 아닙니다"),
+    ET.USER_DISABLE: EngagementAlert(AudibleAlert.chimeDisengage),
+    #ET.SOFT_DISABLE: SoftDisableAlert("기어가 드라이브모드가 아닙니다"),
     ET.NO_ENTRY: NoEntryAlert("기어가 드라이브모드가 아닙니다"),
   },
 
@@ -807,7 +808,7 @@ EVENTS = {
   EventName.speedTooLow: {
     ET.IMMEDIATE_DISABLE: Alert(
       "오픈파일럿 시작불가",
-      "선행차량이 없습니다",
+      "차량의 속도가 낮습니다",
       AlertStatus.normal, AlertSize.mid,
       Priority.HIGH, VisualAlert.none, AudibleAlert.none, .4, 2., 3.),
   },
