@@ -447,8 +447,6 @@ def manager_thread():
 
   EnableLogger = int(params.get('OpkrEnableLogger'))     
 
-  #EnableLogger = (params.get("RecordFront") != b"0")
-
   if not EnableLogger:
     car_started_processes.remove( 'loggerd' )
     persistent_processes.remove( 'logmessaged' )

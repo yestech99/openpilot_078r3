@@ -555,6 +555,42 @@ static void ui_draw_debug(UIState *s)
   ui_print( s, 0, 1078, "%s", scene.alert.text2 );
 }
 
+/*
+  park @1;
+  drive @2;
+  neutral @3;
+  reverse @4;
+  sport @5;
+  low @6;
+  brake @7;
+  eco @8;
+*/
+static void ui_draw_gear( UIState *s )
+{
+  UIScene &scene = s->scene;  
+  NVGcolor nColor = COLOR_WHITE;
+
+  int  ngetGearShifter = int(scene.getGearShifter);
+  int  x_pos = 1700;
+  int  y_pos = 200;
+  char str_msg[512];
+
+  nvgFontSize(s->vg, 150 );
+  switch( ngetGearShifter )
+  {
+    case 1 : strcpy( str_msg, "P" ); nColor = nvgRGBA(200, 200, 255, 255); break;
+    case 2 : strcpy( str_msg, "D" ); nColor = nvgRGBA(200, 200, 255, 255); break;
+    case 3 : strcpy( str_msg, "N" ); nColor = COLOR_WHITE; break;
+    case 4 : strcpy( str_msg, "R" ); nColor = COLOR_RED; break;
+    case 7 : strcpy( str_msg, "B" ); break;
+    default: sprintf( str_msg, "%d", ngetGearShifter ); break;
+  }
+
+  nvgFillColor(s->vg, nColor);
+  ui_print( s, x_pos, y_pos, str_msg );
+}
+
+
 static void ui_draw_vision_speed(UIState *s) {
   const UIScene *scene = &s->scene;
   float v_ego = s->scene.controls_state.getVEgo();
@@ -565,6 +601,31 @@ static void ui_draw_vision_speed(UIState *s) {
   const int viz_speed_w = 280;
   const int viz_speed_x = scene->ui_viz_rx+((scene->ui_viz_rw/2)-(viz_speed_w/2));
   char speed_str[32];
+
+  // turning blinker from kegman
+  if(scene->leftBlinker) {
+    nvgBeginPath(s->vg);
+    nvgMoveTo(s->vg, viz_speed_x, box_y + header_h/4);
+    nvgLineTo(s->vg, viz_speed_x - viz_speed_w/2, box_y + header_h/4 + header_h/4);
+    nvgLineTo(s->vg, viz_speed_x, box_y + header_h/2 + header_h/4);
+    nvgClosePath(s->vg);
+    nvgFillColor(s->vg, nvgRGBA(23,134,68,scene->blinker_blinkingrate>=50?210:60));
+    nvgFill(s->vg);
+  }
+  if(scene->rightBlinker) {
+    nvgBeginPath(s->vg);
+    nvgMoveTo(s->vg, viz_speed_x+viz_speed_w, box_y + header_h/4);
+    nvgLineTo(s->vg, viz_speed_x+viz_speed_w + viz_speed_w/2, box_y + header_h/4 + header_h/4);
+    nvgLineTo(s->vg, viz_speed_x+viz_speed_w, box_y + header_h/2 + header_h/4);
+    nvgClosePath(s->vg);
+    nvgFillColor(s->vg, nvgRGBA(23,134,68,scene->blinker_blinkingrate>=50?210:60));
+    nvgFill(s->vg);
+    }
+  if(scene->leftBlinker || scene->rightBlinker) {
+    s->scene.blinker_blinkingrate -= 5.5;
+    if(scene->blinker_blinkingrate<0) s->scene.blinker_blinkingrate = 120;
+  }
+
   NVGcolor val_color = COLOR_WHITE;
 
   if( scene->brakePress ) val_color = COLOR_RED;
@@ -603,9 +664,13 @@ static void ui_draw_vision_event(UIState *s) {
       color = nvgRGBA(23, 51, 73, 255);
     }
 
-    if (s->scene.controls_state.getEngageable()){
+    if (s->scene.controls_state.getEngageable() && (int(scene.getGearShifter) != 1 || int(scene.getGearShifter) != 3 || int(scene.getGearShifter) != 4)){
       float angleSteers = s->scene.controls_state.getAngleSteers();
       ui_draw_circle_image(s->vg, bg_wheel_x, bg_wheel_y, bg_wheel_size, s->img_wheel, color, 1.0f, angleSteers );// bg_wheel_y - 25);
+    }
+    else  
+    {
+      ui_draw_gear( s );
     }
   }
 }
@@ -896,7 +961,7 @@ static void bb_ui_draw_measures_right(UIState *s, int bb_x, int bb_y, int bb_w )
     if (s->is_metric) {
       snprintf(uom_str, sizeof(uom_str), "km/h");;
     } else {
-      snprintf(uom_str, sizeof(uom_str), "mph");
+      snprintf(uom_str, sizeof(uom_str), "mi/h");
     }
     bb_h +=bb_ui_draw_measure(s,  val_str, uom_str, "상대속도",
         bb_rx, bb_ry, bb_uom_dx,

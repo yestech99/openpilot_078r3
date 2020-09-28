@@ -409,6 +409,13 @@ void handle_message(UIState *s, SubMaster &sm) {
     s->scene.aEgo = data.getAEgo();
     s->scene.steeringTorqueEps = data.getSteeringTorqueEps();
     scene.getGearShifter = data.getGearShifter();
+    scene.leftBlinker = data.getLeftBlinker();
+    scene.rightBlinker = data.getRightBlinker();
+    scene.leftblindspot = data.getLeftBlindspot();
+    scene.rightblindspot = data.getRightBlindspot();
+    if(scene.leftBlinker!=data.getLeftBlinker() || scene.rightBlinker!=data.getRightBlinker()){
+      scene.blinker_blinkingrate = 50;
+    }
   }
   if ( sm.updated("liveParameters") )
   {

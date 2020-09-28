@@ -120,7 +120,6 @@ def fingerprint(logcan, sendcan, has_relay):
 
   finger = gen_empty_fingerprint()
   candidate_cars = {i: all_known_cars() for i in [0]}  # attempt fingerprint on bus 0 only
-  #candidate_cars = {i: all_known_cars() for i in [0, 1]}
   frame = 0
   frame_fingerprint = 10  # 0.1s
   car_fingerprint = None
