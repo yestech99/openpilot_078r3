@@ -499,7 +499,7 @@ EVENTS = {
       "핸들을 잡아주세요",
       "차로유지 범위를 이탈하고 있습니다",
       AlertStatus.userPrompt, AlertSize.mid,
-      Priority.LOW, VisualAlert.none, AudibleAlert.none, 1., 2., 3.),
+      Priority.LOW, VisualAlert.none, AudibleAlert.none, 1., 1., 1.),
   },
 
   EventName.modeChangeOpenpilot: {
