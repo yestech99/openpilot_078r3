@@ -121,7 +121,7 @@ struct CarEvent @0x9b1657f34caf3ad3 {
     modeChangeOpenpilot @96;
     modeChangeDistcurv @97;
     modeChangeDistance @98;
-    modeChangeAutores @99;
+    modeChangeTrafficjam @99;
     modeChangeStock @100;
   }
 }
@@ -364,7 +364,7 @@ struct CarControl {
       chimeModeOpenpilot @17;
       chimeModeDistcurv @18;
       chimeModeDistance @19;
-      chimeModeAutores @20;
+      chimeModeTrafficjam @20;
     }
   }
 }

@@ -524,12 +524,12 @@ EVENTS = {
       AlertStatus.normal, AlertSize.small,
       Priority.LOW, VisualAlert.none, AudibleAlert.chimeModeDistance, 1., 0, 1.),
   },
-  EventName.modeChangeAutores: {
+  EventName.modeChangeTrafficjam: {
     ET.WARNING: Alert(
-      "자동RES 모드",
-      "사용에 주의 필요",
+      "정체구간 모드",
+      "",
       AlertStatus.normal, AlertSize.small,
-      Priority.LOW, VisualAlert.none, AudibleAlert.chimeModeAutores, 1., 0, 1.),
+      Priority.LOW, VisualAlert.none, AudibleAlert.chimeModeTrafficjam, 1., 0, 1.),
   },
 
   # ********** events that affect controls state transitions **********

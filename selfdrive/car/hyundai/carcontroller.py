@@ -56,8 +56,10 @@ class CarController():
 
     self.traceCC = trace1.Loger("CarController")
 
-    self.res_cnt = 7
-    self.res_delay = 0
+    self.cruise_gap = 0
+    self.cruise_gap_prev = 0
+    self.cruise_gap_set_init = 0
+    self.cruise_gap_switch_timer = 0
 
     self.params = Params()
     self.mode_change_switch = int(self.params.get('CruiseStatemodeSelInit'))
@@ -132,7 +134,7 @@ class CarController():
       self.lanechange_manual_timer = 10
     if CS.out.leftBlinker and CS.out.rightBlinker:
       self.emergency_manual_timer = 10
-    if abs(CS.out.steeringTorque) > 360:
+    if abs(CS.out.steeringTorque) > 200:
       self.driver_steering_torque_above_timer = 20
     if self.lanechange_manual_timer or self.driver_steering_torque_above_timer:
       lkas_active = 0
@@ -206,7 +208,7 @@ class CarController():
       elif CS.out.cruiseState.modeSel == 2:
         self.steer_mode = "차간ONLY"
       elif CS.out.cruiseState.modeSel == 3:
-        self.steer_mode = "자동RES"
+        self.steer_mode = "정체구간"
       elif CS.out.cruiseState.modeSel == 4:
         self.steer_mode = "순정모드"
       if CS.out.steerWarning == 0:
@@ -221,7 +223,7 @@ class CarController():
         self.lkas_switch = "-"
       
       if CS.out.cruiseState.modeSel == 3:
-        str_log2 = '주행모드={:s}  MDPS상태={:s}  LKAS버튼={:s}  AUTORES=(VS:{:03.0f}/CN:{:01.0f}/RD:{:03.0f}/BK:{})'.format( self.steer_mode, self.mdps_status, self.lkas_switch, CS.VSetDis, self.res_cnt, self.res_delay, CS.out.brakeLights )
+        str_log2 = '주행모드={:s}  MDPS상태={:s}  LKAS버튼={:s}  CG:{:1.0f}'.format( self.steer_mode, self.mdps_status, self.lkas_switch, CS.cruiseGapSet )
       else:
         str_log2 = '주행모드={:s}  MDPS상태={:s}  LKAS버튼={:s}'.format( self.steer_mode, self.mdps_status, self.lkas_switch )
       trace1.printf2( '{}'.format( str_log2 ) )
@@ -246,9 +248,19 @@ class CarController():
           self.last_resume_frame = frame
           self.resume_cnt = 0
 
+      elif self.cruise_gap_prev == 0: 
+        self.cruise_gap_prev = CS.cruiseGapSet
+        self.cruise_gap_set_init = 1
+      elif CS.cruiseGapSet != 1.0:
+        self.cruise_gap_switch_timer += 1
+        if self.cruise_gap_switch_timer > 100:
+          can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.GAP_DIST, clu11_speed))
+          self.cruise_gap_switch_timer = 0
+
     # reset lead distnce after the car starts moving
     elif self.last_lead_distance != 0:
       self.last_lead_distance = 0
+      self.cruise_gap = 0
     elif run_speed_ctrl and self.SC != None:
       is_sc_run = self.SC.update( CS, sm, self )
       if is_sc_run:
@@ -256,20 +268,46 @@ class CarController():
         self.resume_cnt += 1
       else:
         self.resume_cnt = 0
-    
-    #if CS.out.cruiseState.modeSel == 3:
-    #  if CS.out.brakeLights and CS.VSetDis > 30:
-    #    self.res_cnt = 0
-    #    self.res_delay = 50
-    #  elif self.res_delay:
-    #    self.res_delay -= 1
-    #  elif not self.res_delay and self.res_cnt < 6 and CS.VSetDis > 30 and CS.out.vEgo > 30 * CV.KPH_TO_MS:
-    #    can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.CANCEL, clu11_speed))
-    #    can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.RES_ACCEL, clu11_speed))
-    #    self.res_cnt += 1
-    #  else:
-    #    self.res_cnt = 7
-    #    self.res_delay = 0
+      if self.dRel > 17 and self.cruise_gap_prev != CS.cruiseGapSet and self.cruise_gap_set_init == 1 and CS.out.cruiseState.modeSel != 3:
+        self.cruise_gap_switch_timer += 1
+        if self.cruise_gap_switch_timer > 50:
+          can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.GAP_DIST, clu11_speed))
+          self.cruise_gap_switch_timer = 0
+      elif self.cruise_gap_prev == CS.cruiseGapSet:
+        self.cruise_gap_set_init = 0
+        self.cruise_gap_prev = 0
+
+    if CS.out.cruiseState.modeSel == 3 and CS.acc_active:
+      if 20 > self.dRel > 18 and self.vRel < 0 and CS.cruiseGapSet != 4.0:
+        self.cruise_gap_switch_timer += 1
+        if self.cruise_gap_switch_timer > 30:
+          can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.GAP_DIST, clu11_speed))
+          self.cruise_gap_switch_timer = 0
+      elif 16 > self.dRel > 14 and self.vRel < 0 and CS.cruiseGapSet != 3.0:
+        self.cruise_gap_switch_timer += 1
+        if self.cruise_gap_switch_timer > 30:
+          can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.GAP_DIST, clu11_speed))
+          self.cruise_gap_switch_timer = 0
+      elif 12 > self.dRel > 10 and self.vRel < 0 and CS.cruiseGapSet != 2.0:
+        self.cruise_gap_switch_timer += 1
+        if self.cruise_gap_switch_timer > 30:
+          can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.GAP_DIST, clu11_speed))
+          self.cruise_gap_switch_timer = 0
+      elif 9 > self.dRel > 7 and self.vRel < 0 and CS.cruiseGapSet != 1.0:
+        self.cruise_gap_switch_timer += 1
+        if self.cruise_gap_switch_timer > 30:
+          can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.GAP_DIST, clu11_speed))
+          self.cruise_gap_switch_timer = 0
+      elif 15 > self.dRel > 4 and self.vRel > 0 and CS.cruiseGapSet != 1.0:
+        self.cruise_gap_switch_timer += 1
+        if self.cruise_gap_switch_timer > 30:
+          can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.GAP_DIST, clu11_speed))
+          self.cruise_gap_switch_timer = 0
+      elif 25 > self.dRel > 18 and self.vRel >= 0 and CS.cruiseGapSet != 2.0:
+        self.cruise_gap_switch_timer += 1
+        if self.cruise_gap_switch_timer > 30:
+          can_sends.append(create_clu11(self.packer, frame, CS.scc_bus, CS.clu11, Buttons.GAP_DIST, clu11_speed))
+          self.cruise_gap_switch_timer = 0
 
     # 20 Hz LFA MFA message
     #if frame % 5 == 0 and self.car_fingerprint in [CAR.IONIQ]:
