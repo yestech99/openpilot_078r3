@@ -630,7 +630,7 @@ class CarInterface(CarInterfaceBase):
 
 
     # these cars require a special panda safety mode due to missing counters and checksums in the messages
-    if candidate in [CAR.GENESIS, CAR.IONIQ_EV, CAR.IONIQ_HEV, CAR.KONA_EV]:
+    if candidate == CAR.HYUNDAI_GENESIS:
       ret.safetyModel = car.CarParams.SafetyModel.hyundaiLegacy
 
     ret.centerToFront = ret.wheelbase * 0.4

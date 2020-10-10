@@ -163,14 +163,14 @@ class CarState(CarStateBase):
     rightBlinker = cp.vl["CGW1"]['CF_Gway_TurnSigRh'] != 0
 
     if leftBlinker and not rightBlinker:
-      self.left_blinker_flash = 150
+      self.left_blinker_flash = 200
       self.right_blinker_flash = 0
     elif rightBlinker and not leftBlinker:
-      self.right_blinker_flash = 150
+      self.right_blinker_flash = 200
       self.left_blinker_flash = 0
     elif leftBlinker and rightBlinker:
-      self.left_blinker_flash = 150
-      self.right_blinker_flash = 150
+      self.left_blinker_flash = 200
+      self.right_blinker_flash = 200
 
     if  self.left_blinker_flash:
       self.left_blinker_flash -= 1
@@ -506,7 +506,6 @@ class CarState(CarStateBase):
 
     signals = [
       # sig_name, sig_address, default
-      ("CF_Lkas_LdwsActivemode", "LKAS11", 0),
       ("CF_Lkas_Bca_R", "LKAS11", 0),
       ("CF_Lkas_LdwsSysState", "LKAS11", 0),
       ("CF_Lkas_SysWarning", "LKAS11", 0),
