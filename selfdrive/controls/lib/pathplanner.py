@@ -61,15 +61,15 @@ class PathPlanner():
     self.solution_invalid_cnt = 0
     self.lane_change_enabled = Params().get('LaneChangeEnabled') == b'1'
 
-    if Params().get('OpkrAutoLanechangedelay') == "0":
+    if int(Params().get('OpkrAutoLanechangedelay')) == 0:
       self.lane_change_auto_delay = 0.0
-    elif Params().get('OpkrAutoLanechangedelay') == "1":
+    elif int(Params().get('OpkrAutoLanechangedelay')) == 1:
       self.lane_change_auto_delay = 0.5
-    elif Params().get('OpkrAutoLanechangedelay') == "2":
+    elif int(Params().get('OpkrAutoLanechangedelay')) == 2:
       self.lane_change_auto_delay = 1.0
-    elif Params().get('OpkrAutoLanechangedelay') == "3":
+    elif int(Params().get('OpkrAutoLanechangedelay')) == 3:
       self.lane_change_auto_delay = 1.5
-    elif Params().get('OpkrAutoLanechangedelay') == "4":
+    elif int(Params().get('OpkrAutoLanechangedelay')) == 4:
       self.lane_change_auto_delay = 2.0
 
     self.lane_change_wait_timer = 0.0
@@ -149,7 +149,7 @@ class PathPlanner():
 
         if not one_blinker or below_lane_change_speed:
           self.lane_change_state = LaneChangeState.off
-        elif not blindspot_detected and (torque_applied or (self.lane_change_auto_delay and self.lane_change_wait_timer > self.lane_change_auto_delay)):
+        elif not blindspot_detected and (torque_applied or (self.lane_change_wait_timer > self.lane_change_auto_delay)):
           self.lane_change_state = LaneChangeState.laneChangeStarting
 
       # starting

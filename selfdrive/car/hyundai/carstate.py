@@ -154,6 +154,8 @@ class CarState(CarStateBase):
     self.tpmsPressureRl = cp.vl["TPMS11"]['PRESSURE_RL'] * 5 * 0.145
     self.tpmsPressureRr = cp.vl["TPMS11"]['PRESSURE_RR'] * 5 * 0.145
 
+    self.cruiseGapSet = cp_scc.vl["SCC11"]['TauGapSet']
+
     return ret
 
   def update_blinker(self, cp):
@@ -375,7 +377,7 @@ class CarState(CarStateBase):
       ("ESC_Off_Step", "TCS15", 0),
 
       ("CF_Lvr_GearInf", "LVR11", 0),        # Transmission Gear (0 = N or P, 1-8 = Fwd, 14 = Rev)
-
+      ("CF_Lvr_CruiseSet", "LVR12", 0),
 
       ("MainMode_ACC", "SCC11", 0),
       ("VSetDis", "SCC11", 0),
@@ -384,10 +386,11 @@ class CarState(CarStateBase):
       ("ACC_ObjRelSpd", "SCC11", 0),
       ("ACCMode", "SCC12", 1),
 
+      ("TauGapSet", "SCC11", 4),
       ("Navi_SCC_Curve_Status", "SCC11", 0),
       ("Navi_SCC_Curve_Act", "SCC11", 0),
       ("Navi_SCC_Camera_Act", "SCC11", 0),
-      ("Navi_SCC_Camera_Status", "SCC11", 0),
+      ("Navi_SCC_Camera_Status", "SCC11", 2),
 
       ("PRESSURE_FL", "TPMS11", 0),
       ("PRESSURE_FR", "TPMS11", 0),

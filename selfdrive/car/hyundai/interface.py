@@ -677,6 +677,8 @@ class CarInterface(CarInterfaceBase):
         be.type = ButtonType.accelCruise
       elif but == Buttons.SET_DECEL:
         be.type = ButtonType.decelCruise
+      elif but == Buttons.GAP_DIST:
+        be.type = ButtonType.gapAdjustCruise
       elif but == Buttons.CANCEL:
         be.type = ButtonType.cancel
       buttonEvents.append(be)
